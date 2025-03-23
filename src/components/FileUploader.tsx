@@ -85,7 +85,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
 
   return (
     <div
-      className={`h-36 p-3 border-2 border-dashed rounded-lg transition-colors ${
+      className={`h-28 p-2 border-2 border-dashed rounded-lg transition-colors ${
         isDragging 
           ? 'border-blue-500 bg-blue-50' 
           : 'border-gray-300 hover:border-gray-400'
@@ -95,8 +95,8 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className="text-center mb-2">
-        <p className="text-gray-700 text-sm">
+      <div className="text-center mb-1">
+        <p className="text-gray-700 text-xs">
           Arrastra tu archivo GCODE
         </p>
       </div>
@@ -104,7 +104,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
       <div className="flex justify-center">
         <button
           onClick={handleFileSelect}
-          className="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-1 px-2 rounded"
+          className="bg-blue-500 hover:bg-blue-700 text-white text-xs font-bold py-1 px-2 rounded"
         >
           Seleccionar archivo
         </button>

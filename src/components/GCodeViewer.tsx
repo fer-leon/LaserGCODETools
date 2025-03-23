@@ -68,18 +68,45 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     // If no paths, exit
     if (paths.length === 0) return;
 
-    // Render grid
-    ctx.strokeStyle = '#e0e0e0';
+    // Render grid - Smaller and more fine-grained
+    ctx.strokeStyle = '#f0f0f0'; // Lighter color for minor grid
+    ctx.lineWidth = 0.3; // Thinner lines for minor grid
+    
+    // Draw smaller grid lines first (minor grid)
+    const minorGridSize = 1; // 1 unit grid lines
+    const gridExtent = 1000; // Extend grid beyond bounding box
+    
+    const minorGridMinX = Math.floor((bbox.min.x - gridExtent) / minorGridSize) * minorGridSize;
+    const minorGridMaxX = Math.ceil((bbox.max.x + gridExtent) / minorGridSize) * minorGridSize;
+    const minorGridMinY = Math.floor((bbox.min.y - gridExtent) / minorGridSize) * minorGridSize;
+    const minorGridMaxY = Math.ceil((bbox.max.y + gridExtent) / minorGridSize) * minorGridSize;
+    
+    // Only draw minor grid lines when zoomed in enough
+    if (scale > 0.5) {
+      // Draw minor grid
+      for (let x = minorGridMinX; x <= minorGridMaxX; x += minorGridSize) {
+        ctx.beginPath();
+        const canvasX = x * scale + offset.x;
+        ctx.moveTo(canvasX, 0);
+        ctx.lineTo(canvasX, canvas.height);
+        ctx.stroke();
+      }
+      
+      for (let y = minorGridMinY; y <= minorGridMaxY; y += minorGridSize) {
+        ctx.beginPath();
+        const canvasY = canvas.height - (y * scale + offset.y);
+        ctx.moveTo(0, canvasY);
+        ctx.lineTo(canvas.width, canvasY);
+        ctx.stroke();
+      }
+    }
+    
+    // Draw major grid lines (more visible)
+    const majorGridSize = 10; // 10 unit grid lines
+    ctx.strokeStyle = '#e0e0e0'; // Slightly darker for major grid
     ctx.lineWidth = 0.5;
     
-    // Draw grid lines
-    const gridSize = 10;
-    const gridMinX = Math.floor(bbox.min.x / gridSize) * gridSize;
-    const gridMaxX = Math.ceil(bbox.max.x / gridSize) * gridSize;
-    const gridMinY = Math.floor(bbox.min.y / gridSize) * gridSize;
-    const gridMaxY = Math.ceil(bbox.max.y / gridSize) * gridSize;
-    
-    for (let x = gridMinX; x <= gridMaxX; x += gridSize) {
+    for (let x = Math.floor(bbox.min.x / majorGridSize) * majorGridSize; x <= Math.ceil(bbox.max.x / majorGridSize) * majorGridSize; x += majorGridSize) {
       ctx.beginPath();
       const canvasX = x * scale + offset.x;
       ctx.moveTo(canvasX, 0);
@@ -87,9 +114,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       ctx.stroke();
     }
     
-    for (let y = gridMinY; y <= gridMaxY; y += gridSize) {
+    for (let y = Math.floor(bbox.min.y / majorGridSize) * majorGridSize; y <= Math.ceil(bbox.max.y / majorGridSize) * majorGridSize; y += majorGridSize) {
       ctx.beginPath();
-      const canvasY = canvas.height - (y * scale + offset.y); // Flip Y to match path rendering
+      const canvasY = canvas.height - (y * scale + offset.y);
       ctx.moveTo(0, canvasY);
       ctx.lineTo(canvas.width, canvasY);
       ctx.stroke();
@@ -263,25 +290,25 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
         className="w-full h-full cursor-grab"
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       />
-      <div className="absolute bottom-2 right-2 bg-white p-1 rounded shadow">
+      <div className="absolute bottom-1 right-1 bg-white p-0.5 rounded shadow">
         <div className="flex space-x-1">
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-sm"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-1.5 py-0.5 text-xs"
             onClick={() => setScale(prev => prev * 1.1)}
           >
             +
           </button>
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-sm"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-1.5 py-0.5 text-xs"
             onClick={() => setScale(prev => prev * 0.9)}
           >
             -
           </button>
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-xs"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-1.5 py-0.5 text-xs"
             onClick={handleReset}
           >
-            Reset
+            R
           </button>
         </div>
       </div>
