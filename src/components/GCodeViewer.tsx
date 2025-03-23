@@ -257,28 +257,28 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
   };
 
   return (
-    <div className="w-full h-[calc(100vh-200px)] border border-gray-300 rounded relative">
+    <div className="w-full h-full relative">
       <canvas 
         ref={canvasRef} 
         className="w-full h-full cursor-grab"
         style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
       />
-      <div className="absolute bottom-2 right-2 bg-white p-2 rounded shadow">
-        <div className="flex space-x-2">
+      <div className="absolute bottom-2 right-2 bg-white p-1 rounded shadow">
+        <div className="flex space-x-1">
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-1"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-sm"
             onClick={() => setScale(prev => prev * 1.1)}
           >
             +
           </button>
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-1"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-sm"
             onClick={() => setScale(prev => prev * 0.9)}
           >
             -
           </button>
           <button 
-            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-1 text-xs"
+            className="bg-gray-200 hover:bg-gray-300 rounded px-2 py-0.5 text-xs"
             onClick={handleReset}
           >
             Reset

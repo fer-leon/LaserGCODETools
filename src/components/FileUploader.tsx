@@ -84,35 +84,30 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
   }, [onFileLoaded]);
 
   return (
-    <div className="mt-6">
-      <div
-        className={`p-6 border-2 border-dashed rounded-lg transition-colors ${
-          isDragging 
-            ? 'border-blue-500 bg-blue-50' 
-            : 'border-gray-300 hover:border-gray-400'
-        }`}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div className="text-center mb-4">
-          <p className="text-gray-700">
-            Arrastra y suelta tu archivo GCODE aquí
-          </p>
-          <p className="text-sm text-gray-500 mt-1">
-            (o usa el botón para seleccionarlo)
-          </p>
-        </div>
-        
-        <div className="flex justify-center">
-          <button
-            onClick={handleFileSelect}
-            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-          >
-            Seleccionar archivo GCODE
-          </button>
-        </div>
+    <div
+      className={`h-36 p-3 border-2 border-dashed rounded-lg transition-colors ${
+        isDragging 
+          ? 'border-blue-500 bg-blue-50' 
+          : 'border-gray-300 hover:border-gray-400'
+      }`}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      <div className="text-center mb-2">
+        <p className="text-gray-700 text-sm">
+          Arrastra tu archivo GCODE
+        </p>
+      </div>
+      
+      <div className="flex justify-center">
+        <button
+          onClick={handleFileSelect}
+          className="bg-blue-500 hover:bg-blue-700 text-white text-sm font-bold py-1 px-2 rounded"
+        >
+          Seleccionar archivo
+        </button>
       </div>
     </div>
   );
