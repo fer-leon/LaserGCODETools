@@ -13,6 +13,10 @@ const GCodePage: React.FC = () => {
   const [correctionCoefficient, setCorrectionCoefficient] = useState<number>(0.5);
   const [correctionAxis, setCorrectionAxis] = useState<'X' | 'Y'>('X');
   
+  // Estado para mostrar original o corregido
+  const [viewMode, setViewMode] = useState<'original' | 'corrected'>('corrected');
+  const [showComparison, setShowComparison] = useState<boolean>(true);
+  
   // Estados para los resultados de la corrección
   const [correctionResult, setCorrectionResult] = useState<{
     originalPaths: ReturnType<GCodeParser['getPaths']> | null;
@@ -83,12 +87,41 @@ const GCodePage: React.FC = () => {
           <FileUploader onFileLoaded={handleFileLoaded} />
           
           {gcodeContent ? (
-            <CorrectionControls 
-              coefficient={correctionCoefficient}
-              onCoefficientChange={setCorrectionCoefficient}
-              axis={correctionAxis}
-              onAxisChange={setCorrectionAxis}
-            />
+            <>
+              <CorrectionControls 
+                coefficient={correctionCoefficient}
+                onCoefficientChange={setCorrectionCoefficient}
+                axis={correctionAxis}
+                onAxisChange={setCorrectionAxis}
+              />
+              
+              {/* Controles para cambiar el modo de visualización */}
+              <div className="p-2 bg-white rounded-lg shadow-sm space-y-2">
+                <h3 className="text-sm font-semibold mb-2">Opciones de visualización</h3>              
+                <div className="flex justify-between space-x-2">
+                  <button
+                    className={`py-1 px-2 text-xs rounded-md flex-1 ${
+                      viewMode === 'original' 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    onClick={() => setViewMode('original')}
+                  >
+                    Original
+                  </button>
+                  <button
+                    className={`py-1 px-2 text-xs rounded-md flex-1 ${
+                      viewMode === 'corrected' 
+                        ? 'bg-blue-500 text-white' 
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    onClick={() => setViewMode('corrected')}
+                  >
+                    Corregido
+                  </button>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="p-2 text-center bg-gray-100 rounded-lg">
               <p className="text-gray-600 text-xs">Carga un archivo GCODE para visualizarlo y aplicar correcciones</p>
@@ -96,38 +129,28 @@ const GCodePage: React.FC = () => {
           )}
         </div>
         
-        {/* Panel principal: visualizaciones */}
-        <div className="flex-1 flex flex-col min-h-0 space-y-2">
+        {/* Panel principal: visualización única */}
+        <div className="flex-1 flex flex-col min-h-0">
           {gcodeContent ? (
-            <>
-              {/* Vista dividida con etiquetas */}
-              <div className="flex text-xs font-semibold bg-gray-100 rounded-t px-2 py-1">
-                <div className="flex-1">GCODE Original</div>
-                <div className="flex-1">GCODE Corregido</div>
-              </div>
-              
-              {/* Contenedores de visualización lado a lado */}
-              <div className="flex-1 flex space-x-2 min-h-0">
-                <div className="flex-1 border border-gray-200 rounded min-h-0">
-                  <GCodeViewer 
-                    gcodeContent={gcodeContent}
-                    title="Original" 
-                  />
-                </div>
-                <div className="flex-1 border border-gray-200 rounded min-h-0">
-                  <GCodeViewer 
-                    customPaths={correctionResult.correctedPaths}
-                    originalPaths={correctionResult.originalPaths}
-                    correctionFactors={correctionResult.correctionFactors}
-                    customBbox={correctionResult.bbox}
-                    customCentroid={correctionResult.centroid}
-                    colorMode="correction"
-                    showOriginal={true}
-                    title="Corregido"
-                  />
-                </div>
-              </div>
-            </>
+            <div className="flex-1 border border-gray-200 rounded min-h-0">
+              {viewMode === 'original' ? (
+                <GCodeViewer 
+                  gcodeContent={gcodeContent}
+                  title="GCODE Original" 
+                />
+              ) : (
+                <GCodeViewer 
+                  customPaths={correctionResult.correctedPaths}
+                  originalPaths={showComparison ? correctionResult.originalPaths : null}
+                  correctionFactors={correctionResult.correctionFactors}
+                  customBbox={correctionResult.bbox}
+                  customCentroid={correctionResult.centroid}
+                  colorMode="correction"
+                  showOriginal={showComparison}
+                  title="GCODE con Corrección de Velocidad"
+                />
+              )}
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center border border-gray-200 rounded">
               <svg className="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">

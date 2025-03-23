@@ -122,10 +122,10 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     const width = 100;
     const height = 15;
     
-    // Gradient
+    // Modificado el gradiente: Azul a Rojo
     const gradient = ctx.createLinearGradient(x, y, x + width, y);
     gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - sin corrección
-    gradient.addColorStop(1, 'rgb(0, 200, 0)'); // Verde - máxima corrección
+    gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - máxima corrección
     
     // Draw gradient rectangle
     ctx.fillStyle = gradient;
@@ -142,6 +142,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     ctx.textAlign = 'center';
     ctx.fillText('0%', x, y + height + 12);
     ctx.fillText('100%', x + width, y + height + 12);
+    ctx.fillText('Reducción de velocidad', x + width/2, y + height + 24);
   };
 
   // Función para mostrar la velocidad correctamente, considerando correcciones
@@ -181,32 +182,150 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     // If no paths, exit
     if (paths.length === 0) return;
 
-    // Render grid and axes (código existente)
-    // ...existing grid rendering code...
+    // Renderizar la cuadrícula - dos niveles de detalle
+    // Cuadrícula principal (unidades grandes)
+    const majorGridSize = 10; // Cada 10 unidades
+    ctx.strokeStyle = '#e0e0e0'; // Gris claro para la cuadrícula principal
+    ctx.lineWidth = 0.5;
     
-    // Draw grid lines similar to the existing code
-    ctx.strokeStyle = '#f0f0f0';
-    ctx.lineWidth = 0.3;
+    // Calcular el rango de la cuadrícula para extenderse más allá del bounding box
+    const gridExtent = 100; // Extender la cuadrícula más allá del bbox
     
-    // Draw all the grid lines...
-    // ...existing grid code...
+    // Grid X - líneas verticales principales
+    for (let x = Math.floor((bbox.min.x - gridExtent) / majorGridSize) * majorGridSize; 
+         x <= Math.ceil((bbox.max.x + gridExtent) / majorGridSize) * majorGridSize; 
+         x += majorGridSize) {
+      ctx.beginPath();
+      const canvasX = x * scale + offset.x;
+      ctx.moveTo(canvasX, 0);
+      ctx.lineTo(canvasX, canvas.height);
+      ctx.stroke();
+    }
     
-    // Draw axes with arrows (CAD style)
-    // Helper function to draw an arrow
+    // Grid Y - líneas horizontales principales
+    for (let y = Math.floor((bbox.min.y - gridExtent) / majorGridSize) * majorGridSize; 
+         y <= Math.ceil((bbox.max.y + gridExtent) / majorGridSize) * majorGridSize; 
+         y += majorGridSize) {
+      ctx.beginPath();
+      const canvasY = canvas.height - (y * scale + offset.y);
+      ctx.moveTo(0, canvasY);
+      ctx.lineTo(canvas.width, canvasY);
+      ctx.stroke();
+    }
+    
+    // Cuadrícula secundaria (unidades pequeñas) - solo visible con zoom
+    if (scale > 0.5) {
+      const minorGridSize = 1; // Cada unidad
+      ctx.strokeStyle = '#f3f3f3'; // Gris más claro para cuadrícula secundaria
+      ctx.lineWidth = 0.3;
+      
+      // Grid X - líneas verticales secundarias
+      for (let x = Math.floor((bbox.min.x - gridExtent) / minorGridSize) * minorGridSize; 
+           x <= Math.ceil((bbox.max.x + gridExtent) / minorGridSize) * minorGridSize; 
+           x += minorGridSize) {
+        // Solo dibujar si no es una línea de cuadrícula principal
+        if (x % majorGridSize !== 0) {
+          ctx.beginPath();
+          const canvasX = x * scale + offset.x;
+          ctx.moveTo(canvasX, 0);
+          ctx.lineTo(canvasX, canvas.height);
+          ctx.stroke();
+        }
+      }
+      
+      // Grid Y - líneas horizontales secundarias
+      for (let y = Math.floor((bbox.min.y - gridExtent) / minorGridSize) * minorGridSize; 
+           y <= Math.ceil((bbox.max.y + gridExtent) / minorGridSize) * minorGridSize; 
+           y += minorGridSize) {
+        // Solo dibujar si no es una línea de cuadrícula principal
+        if (y % majorGridSize !== 0) {
+          ctx.beginPath();
+          const canvasY = canvas.height - (y * scale + offset.y);
+          ctx.moveTo(0, canvasY);
+          ctx.lineTo(canvas.width, canvasY);
+          ctx.stroke();
+        }
+      }
+    }
+    
+    // Dibujar ejes y origen con flechas estilo CAD
+    // Función para dibujar una flecha
     const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string, text?: string) => {
-      // ...existing arrow drawing code...
+      const headLength = 10; // Longitud de la punta de la flecha
+      const headAngle = Math.PI / 6; // 30 grados para la punta
+      
+      // Calcular el ángulo de la línea
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      
+      // Dibujar la línea
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // Dibujar la punta de la flecha
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(
+        toX - headLength * Math.cos(angle - headAngle),
+        toY - headLength * Math.sin(angle - headAngle)
+      );
+      ctx.lineTo(
+        toX - headLength * Math.cos(angle + headAngle),
+        toY - headLength * Math.sin(angle + headAngle)
+      );
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      
+      // Dibujar texto si se proporciona
+      if (text) {
+        ctx.font = '14px Arial';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Posición del texto ligeramente desplazada de la punta
+        ctx.fillText(text, 
+          toX + 15 * Math.cos(angle), 
+          toY + 15 * Math.sin(angle)
+        );
+      }
     };
     
-    // Get origin position in canvas coordinates
-    const originX = offset.x;
-    const originY = canvas.height - offset.y;
+    // Obtener posición del origen en coordenadas del canvas
+    const originX = offset.x; // Posición X del origen en el canvas
+    const originY = canvas.height - offset.y; // Posición Y del origen en el canvas
     
-    // Draw X and Y axes
-    // ...existing axes drawing code...
+    // Dibujar eje X (rojo, típico en CAD)
+    const xAxisLength = Math.min(120, canvas.width - originX - 20); // Limitar la longitud
+    drawArrow(
+      originX, originY, 
+      originX + xAxisLength, originY,
+      '#E74C3C', // Rojo para eje X
+      'X'
+    );
+    
+    // Dibujar eje Y (verde, típico en CAD)
+    const yAxisLength = Math.min(120, originY - 20); // Limitar la longitud
+    drawArrow(
+      originX, originY,
+      originX, originY - yAxisLength,
+      '#2ECC71', // Verde para eje Y
+      'Y'
+    );
+    
+    // Dibujar un pequeño círculo en el origen
+    ctx.beginPath();
+    ctx.arc(originX, originY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#333333';
+    ctx.fill();
     
     // Si estamos en modo corrección y tenemos factores, dibujamos la leyenda
     if (colorMode === 'correction' && correctionFactors) {
-      drawCorrectionLegend(ctx, canvas.width - 120, 20);
+      // Cambio: Posición Y aumentada de 20 a 50 para bajar la leyenda
+      drawCorrectionLegend(ctx, canvas.width - 120, 50);
     }
     
     // Dibujar los paths originales en gris si showOriginal es true y tenemos originalPaths
@@ -252,14 +371,13 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         const correctionFactor = correctionFactors[index] || 0;
         
         if (path.isRapid) {
-          // Movimientos rápidos siempre en rojo
-          ctx.strokeStyle = '#ff0000';
+          // Movimientos rápidos ahora en verde
+          ctx.strokeStyle = '#2ECC71'; // Verde para movimientos rápidos
           ctx.setLineDash([5, 3]);
         } else {
-          // Interpolación de color: azul (sin corrección) a verde (máxima corrección)
-          // Cambiamos la interpretación: verde ahora significa velocidad reducida
-          const r = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
-          const g = Math.floor(0 * (1 - correctionFactor) + 200 * correctionFactor);
+          // Interpolación de color: azul (sin corrección) a rojo (máxima corrección)
+          const r = Math.floor(0 * (1 - correctionFactor) + 255 * correctionFactor);
+          const g = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
           const b = Math.floor(255 * (1 - correctionFactor) + 0 * correctionFactor);
           ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
           ctx.setLineDash([]);
@@ -269,12 +387,12 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       } else {
         // Coloración normal
         if (isHighlighted) {
-          // Highlighted path style
-          ctx.strokeStyle = path.isRapid ? '#ff6666' : '#6666ff'; // Brighter colors
+          // Highlighted path style - también usando verde para movimientos rápidos
+          ctx.strokeStyle = path.isRapid ? '#66CC66' : '#6666ff'; // Verde brillante o azul brillante
           ctx.lineWidth = 3.0; // Thicker line
         } else {
-          // Normal path style
-          ctx.strokeStyle = path.isRapid ? '#ff0000' : '#0000ff';
+          // Normal path style - Verde para rápidos, azul para corte
+          ctx.strokeStyle = path.isRapid ? '#2ECC71' : '#0000ff';
           ctx.lineWidth = 1.5;
         }
         
@@ -506,7 +624,6 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         className="w-full h-full"
         style={{ cursor: isDragging ? 'grabbing' : (highlightedLine ? 'pointer' : 'grab') }}
       />
-
       
       {highlightedLine && (
         <div 
