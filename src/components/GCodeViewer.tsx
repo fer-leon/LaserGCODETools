@@ -371,19 +371,35 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         const correctionFactor = correctionFactors[index] || 0;
         
         if (path.isRapid) {
-          // Movimientos rápidos ahora en verde
-          ctx.strokeStyle = '#2ECC71'; // Verde para movimientos rápidos
+          // Movimientos rápidos ahora en verde (con resaltado si es necesario)
+          if (isHighlighted) {
+            ctx.strokeStyle = '#66CC66'; // Verde más brillante para resaltado
+            ctx.lineWidth = 3.0;
+          } else {
+            ctx.strokeStyle = '#2ECC71'; // Verde normal
+            ctx.lineWidth = 2.0;
+          }
           ctx.setLineDash([5, 3]);
         } else {
           // Interpolación de color: azul (sin corrección) a rojo (máxima corrección)
-          const r = Math.floor(0 * (1 - correctionFactor) + 255 * correctionFactor);
-          const g = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
-          const b = Math.floor(255 * (1 - correctionFactor) + 0 * correctionFactor);
-          ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+          // Pero si está resaltado, usar un tono más brillante
+          if (isHighlighted) {
+            // Versión más brillante del color interpolado para resaltado
+            const r = Math.floor(80 + (0 * (1 - correctionFactor) + 255 * correctionFactor) * 0.8);
+            const g = Math.floor(80 + (0 * (1 - correctionFactor) + 0 * correctionFactor) * 0.8);
+            const b = Math.floor(80 + (255 * (1 - correctionFactor) + 0 * correctionFactor) * 0.8);
+            ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.lineWidth = 3.0;
+          } else {
+            // Color normal
+            const r = Math.floor(0 * (1 - correctionFactor) + 255 * correctionFactor);
+            const g = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
+            const b = Math.floor(255 * (1 - correctionFactor) + 0 * correctionFactor);
+            ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.lineWidth = 2.0;
+          }
           ctx.setLineDash([]);
         }
-        
-        ctx.lineWidth = 2;
       } else {
         // Coloración normal
         if (isHighlighted) {
@@ -524,25 +540,28 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       } | null = null;
       let closestDistance = 5; // Minimum distance threshold in pixels
       
-      paths.forEach((path, index) => {
-        // Convert path coordinates to canvas space
-        const startX = path.start.x * scale + offset.x;
-        const startY = canvas.height - (path.start.y * scale + offset.y);
-        const endX = path.end.x * scale + offset.x;
-        const endY = canvas.height - (path.end.y * scale + offset.y);
-        
-        // Calculate distance from mouse to line
-        const distance = distanceToLine(mouseX, mouseY, startX, startY, endX, endY);
-        
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestLine = {
-            index,
-            path,
-            position: { x: mouseX, y: mouseY }
-          };
-        }
-      });
+      // Asegurarse de que siempre tenemos paths válidos para buscar
+      if (paths && paths.length > 0) {
+        paths.forEach((path, index) => {
+          // Convert path coordinates to canvas space
+          const startX = path.start.x * scale + offset.x;
+          const startY = canvas.height - (path.start.y * scale + offset.y);
+          const endX = path.end.x * scale + offset.x;
+          const endY = canvas.height - (path.end.y * scale + offset.y);
+          
+          // Calculate distance from mouse to line
+          const distance = distanceToLine(mouseX, mouseY, startX, startY, endX, endY);
+          
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestLine = {
+              index,
+              path,
+              position: { x: mouseX, y: mouseY }
+            };
+          }
+        });
+      }
       
       // Update highlighted line
       setHighlightedLine(closestLine);
