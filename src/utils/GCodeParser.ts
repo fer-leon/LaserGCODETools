@@ -112,6 +112,41 @@ export class GCodeParser {
 
     return { min, max };
   }
+
+  // Nuevo método para calcular el centroide geométrico
+  getCentroid(): Point2D {
+    if (this.paths.length === 0) {
+      return { x: 0, y: 0 };
+    }
+
+    // Recolectar todos los puntos únicos (inicio y fin de cada trayecto)
+    const pointsMap = new Map<string, Point2D>();
+    
+    this.paths.forEach(path => {
+      // Usar un string como clave para identificar puntos únicos
+      // Redondeamos a 4 decimales para evitar problemas de precisión de punto flotante
+      const startKey = `${path.start.x.toFixed(4)},${path.start.y.toFixed(4)}`;
+      const endKey = `${path.end.x.toFixed(4)},${path.end.y.toFixed(4)}`;
+      
+      pointsMap.set(startKey, path.start);
+      pointsMap.set(endKey, path.end);
+    });
+
+    // Convertir el mapa a un array de puntos únicos
+    const uniquePoints = Array.from(pointsMap.values());
+    
+    // Calcular el centroide como el promedio de todos los puntos
+    const centroid = { x: 0, y: 0 };
+    uniquePoints.forEach(point => {
+      centroid.x += point.x;
+      centroid.y += point.y;
+    });
+    
+    centroid.x /= uniquePoints.length;
+    centroid.y /= uniquePoints.length;
+    
+    return centroid;
+  }
 }
 
 export default GCodeParser;

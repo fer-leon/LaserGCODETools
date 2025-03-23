@@ -15,7 +15,8 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
   // Store parsed data in a ref to avoid re-parsing on every render
   const parsedDataRef = useRef<{
     paths: ReturnType<GCodeParser['getPaths']>,
-    bbox: ReturnType<GCodeParser['getBoundingBox']>
+    bbox: ReturnType<GCodeParser['getBoundingBox']>,
+    centroid: ReturnType<GCodeParser['getCentroid']>
   } | null>(null);
 
   // Parse GCODE only when content changes
@@ -29,25 +30,35 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     parser.parseGCode(gcodeContent);
     parsedDataRef.current = {
       paths: parser.getPaths(),
-      bbox: parser.getBoundingBox()
+      bbox: parser.getBoundingBox(),
+      centroid: parser.getCentroid()
     };
     
     // Reset view when new content is loaded
     const canvas = canvasRef.current;
     if (canvas) {
-      const bbox = parsedDataRef.current.bbox;
+      const { bbox, centroid } = parsedDataRef.current;
+      
+      // Fijo: establecer escala al 50% (0.5) del tamaño real
+      const fixedScale = 0.5;
+      
+      // Calcular también la escala que ajustaría el dibujo entero en el canvas
       const padding = 20;
       const xRange = bbox.max.x - bbox.min.x;
       const yRange = bbox.max.y - bbox.min.y;
       
       const xScale = (canvas.width - 2 * padding) / (xRange || 1);
       const yScale = (canvas.height - 2 * padding) / (yRange || 1);
+      const fitScale = Math.min(xScale, yScale);
       
-      const newScale = Math.min(xScale, yScale);
+      // Usar el mayor entre la escala fija y la escala de ajuste
+      const newScale = Math.max(fixedScale, fitScale * 0.9);
       setScale(newScale);
       
-      const newOffsetX = padding - bbox.min.x * newScale + (canvas.width - xRange * newScale) / 2;
-      const newOffsetY = padding - bbox.min.y * newScale + (canvas.height - yRange * newScale) / 2;
+      // CORREGIDO: Para ser coherente con la transformación al renderizar
+      const newOffsetX = canvas.width / 2 - centroid.x * newScale;
+      const newOffsetY = canvas.height / 2 + centroid.y * newScale - canvas.height;
+      
       setOffset({ x: newOffsetX, y: newOffsetY });
     }
   }, [gcodeContent]);
@@ -144,10 +155,11 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       ctx.beginPath();
       
       // Transform coordinates to canvas space
+      // Corregido: Invertimos el eje Y para la visualización correcta
       const startX = path.start.x * scale + offset.x;
-      const startY = canvas.height - (path.start.y * scale + offset.y); // Flip Y axis
+      const startY = canvas.height - (path.start.y * scale + offset.y); // Invertimos Y
       const endX = path.end.x * scale + offset.x;
-      const endY = canvas.height - (path.end.y * scale + offset.y); // Flip Y axis
+      const endY = canvas.height - (path.end.y * scale + offset.y); // Invertimos Y
       
       ctx.moveTo(startX, startY);
       ctx.lineTo(endX, endY);
@@ -201,7 +213,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       
       // Compute scale change
       const delta = e.deltaY > 0 ? 0.9 : 1.1; // Zoom in or out
-      const newScale = scale * delta;
+      const newScale = Math.max(0.1, scale * delta); // Limitar el zoom mínimo a 0.1
       
       // Adjust offset to zoom centered on mouse position
       const newOffsetX = mouseX - (mouseX - offset.x) * delta;
@@ -266,7 +278,10 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     if (!parsedDataRef.current || !canvasRef.current) return;
     
     const canvas = canvasRef.current;
-    const bbox = parsedDataRef.current.bbox;
+    const { bbox, centroid } = parsedDataRef.current;
+    
+    // Usar la misma lógica que en el efecto inicial
+    const fixedScale = 0.5;
     
     const padding = 20;
     const xRange = bbox.max.x - bbox.min.x;
@@ -274,12 +289,14 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     
     const xScale = (canvas.width - 2 * padding) / (xRange || 1);
     const yScale = (canvas.height - 2 * padding) / (yRange || 1);
+    const fitScale = Math.min(xScale, yScale);
     
-    const newScale = Math.min(xScale, yScale);
+    const newScale = Math.max(fixedScale, fitScale * 0.5);
+    
+    const newOffsetX = canvas.width / 2 - centroid.x * newScale;
+    const newOffsetY = canvas.height / 2 + centroid.y * newScale - canvas.height;
+    
     setScale(newScale);
-    
-    const newOffsetX = padding - bbox.min.x * newScale + (canvas.width - xRange * newScale) / 2;
-    const newOffsetY = padding - bbox.min.y * newScale + (canvas.height - yRange * newScale) / 2;
     setOffset({ x: newOffsetX, y: newOffsetY });
   };
 
