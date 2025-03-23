@@ -1,6 +1,6 @@
 {
   "name": "LaserGCODETools",
-  "productName": "appejemplo2",
+  "productName": "LaserGCODETools-",
   "version": "1.0.0",
   "description": "GCODE Viewer Application",
   "main": ".webpack/main",
