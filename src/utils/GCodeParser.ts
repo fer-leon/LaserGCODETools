@@ -14,17 +14,21 @@ interface GCodePath {
   start: Point2D;
   end: Point2D;
   isRapid: boolean; // G0 commands are rapid movements
+  feedrate?: number; // Velocidad de movimiento (valor F)
+  command?: GCodeCommand; // Comando original para referencias adicionales
 }
 
 export class GCodeParser {
   private currentPosition: Point2D = { x: 0, y: 0 };
   private paths: GCodePath[] = [];
   private commands: GCodeCommand[] = [];
+  private currentFeedrate: number = 0; // Valor actual de feedrate
 
   parseGCode(gcode: string): void {
     this.commands = [];
     this.paths = [];
     this.currentPosition = { x: 0, y: 0 };
+    this.currentFeedrate = 0;
 
     const lines = gcode.split('\n');
     
@@ -63,6 +67,11 @@ export class GCodeParser {
   }
 
   private processCommand(command: GCodeCommand): void {
+    // Actualizar feedrate si está presente
+    if ('F' in command.params) {
+      this.currentFeedrate = command.params.F;
+    }
+    
     // Handle different G codes
     if (command.code === 'G0' || command.code === 'G1') {
       const newPosition = { ...this.currentPosition };
@@ -75,7 +84,9 @@ export class GCodeParser {
       this.paths.push({
         start: { ...this.currentPosition },
         end: { ...newPosition },
-        isRapid: command.code === 'G0'
+        isRapid: command.code === 'G0',
+        feedrate: this.currentFeedrate, // Almacenar la velocidad actual
+        command: command // Almacenar el comando original
       });
 
       // Update current position

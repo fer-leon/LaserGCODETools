@@ -5,6 +5,13 @@ interface GCodeViewerProps {
   gcodeContent: string | null;
 }
 
+// Interfaz para el registro de la línea seleccionada
+interface HighlightedLine {
+  index: number;
+  path: ReturnType<GCodeParser['getPaths']>[0];
+  position: { x: number, y: number }; // Posición del cursor para el tooltip
+}
+
 const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
@@ -21,6 +28,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
 
   // Store initial view settings for reset functionality
   const initialViewRef = useRef<{ scale: number; offset: { x: number; y: number } } | null>(null);
+
+  // Estado para la línea resaltada
+  const [highlightedLine, setHighlightedLine] = useState<HighlightedLine | null>(null);
 
   // Parse GCODE only when content changes
   useEffect(() => {
@@ -208,7 +218,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     );
     
     // Draw paths
-    paths.forEach(path => {
+    paths.forEach((path, index) => {
       ctx.beginPath();
       
       // Transform coordinates to canvas space
@@ -221,20 +231,26 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       ctx.moveTo(startX, startY);
       ctx.lineTo(endX, endY);
       
-      // Set line style based on rapid vs cutting move
-      if (path.isRapid) {
-        ctx.strokeStyle = '#ff0000'; // Red for rapid moves
-        ctx.setLineDash([5, 3]); // Dashed line for rapid moves
+      // Determine if this is the highlighted line
+      const isHighlighted = highlightedLine?.index === index;
+      
+      // Set line style based on rapid vs cutting move and highlight state
+      if (isHighlighted) {
+        // Highlighted path style
+        ctx.strokeStyle = path.isRapid ? '#ff6666' : '#6666ff'; // Brighter colors
+        ctx.lineWidth = 3.0; // Thicker line
+        ctx.setLineDash(path.isRapid ? [5, 3] : []); // Maintain dash for rapid moves
       } else {
-        ctx.strokeStyle = '#0000ff'; // Blue for cutting moves
-        ctx.setLineDash([]); // Solid line for cutting moves
+        // Normal path style
+        ctx.strokeStyle = path.isRapid ? '#ff0000' : '#0000ff';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash(path.isRapid ? [5, 3] : []);
       }
       
-      ctx.lineWidth = 1.5;
       ctx.stroke();
       ctx.setLineDash([]); // Reset line dash
     });
-  }, [scale, offset]);
+  }, [scale, offset, highlightedLine]);
 
   // Re-render when scale or offset change
   useEffect(() => {
@@ -330,6 +346,69 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     };
   }, [scale, offset, renderCanvas, isDragging]);
 
+  // Add mousemove event to detect lines under cursor
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !parsedDataRef.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging) {
+        // Don't detect lines while dragging
+        setHighlightedLine(null);
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const { paths } = parsedDataRef.current;
+      
+      // Find closest line to mouse cursor
+      let closestLine: HighlightedLine | null = null;
+      let closestDistance = 5; // Minimum distance threshold in pixels
+      
+      paths.forEach((path, index) => {
+        // Convert path coordinates to canvas space
+        const startX = path.start.x * scale + offset.x;
+        const startY = canvas.height - (path.start.y * scale + offset.y);
+        const endX = path.end.x * scale + offset.x;
+        const endY = canvas.height - (path.end.y * scale + offset.y);
+        
+        // Calculate distance from mouse to line
+        const distance = distanceToLine(mouseX, mouseY, startX, startY, endX, endY);
+        
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestLine = {
+            index,
+            path,
+            position: { x: mouseX, y: mouseY }
+          };
+        }
+      });
+      
+      // Update highlighted line
+      setHighlightedLine(closestLine);
+      
+      // Update cursor style
+      canvas.style.cursor = closestLine ? 'pointer' : 'grab';
+    };
+
+    const handleMouseOut = () => {
+      setHighlightedLine(null);
+      canvas.style.cursor = 'grab';
+    };
+
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseout', handleMouseOut);
+
+    return () => {
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseout', handleMouseOut);
+    };
+  }, [scale, offset, isDragging, parsedDataRef]);
+
   // Reset view button handler - simplified to restore initial view exactly
   const handleReset = () => {
     if (!initialViewRef.current) return;
@@ -339,13 +418,107 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     setOffset(initialViewRef.current.offset);
   };
 
+  // Calculate distance from point to line segment
+  const distanceToLine = (x: number, y: number, x1: number, y1: number, x2: number, y2: number): number => {
+    const A = x - x1;
+    const B = y - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    
+    let param = -1;
+    if (lenSq !== 0) { // line is not a point
+      param = dot / lenSq;
+    }
+    
+    let xx, yy;
+    
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+    
+    const dx = x - xx;
+    const dy = y - yy;
+    
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Format coordinates for display
+  const formatCoordinate = (value: number) => value.toFixed(2);
+
+  // Función para mostrar la velocidad correctamente
+  const formatFeedrate = (path: ReturnType<GCodeParser['getPaths']>[0]) => {
+    if (path.isRapid) {
+      return 'Máxima (G0)';
+    }
+    
+    // Si es un movimiento de corte (G1), siempre tiene una velocidad
+    // Puede ser de esta línea específica o heredada de comandos anteriores
+    return `${formatCoordinate(path.feedrate || 0)} unidades/min`;
+  };
+
   return (
     <div className="w-full h-full relative">
       <canvas 
         ref={canvasRef} 
-        className="w-full h-full cursor-grab"
-        style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+        className="w-full h-full"
+        style={{ cursor: isDragging ? 'grabbing' : (highlightedLine ? 'pointer' : 'grab') }}
       />
+      {highlightedLine && (
+        <div 
+          className="absolute bg-black bg-opacity-75 text-white p-2 rounded shadow-lg text-xs z-10 pointer-events-none"
+          style={{
+            left: highlightedLine.position.x + 10,
+            top: highlightedLine.position.y + 10
+          }}
+        >
+          <div>
+            <span className="font-semibold">Tipo:</span> {highlightedLine.path.isRapid ? 'Movimiento rápido' : 'Corte'}
+          </div>
+          <div>
+            <span className="font-semibold">Inicio:</span> X:{formatCoordinate(highlightedLine.path.start.x)} Y:{formatCoordinate(highlightedLine.path.start.y)}
+          </div>
+          <div>
+            <span className="font-semibold">Fin:</span> X:{formatCoordinate(highlightedLine.path.end.x)} Y:{formatCoordinate(highlightedLine.path.end.y)}
+          </div>
+          <div>
+            <span className="font-semibold">Distancia:</span> {formatCoordinate(
+              Math.sqrt(
+                Math.pow(highlightedLine.path.end.x - highlightedLine.path.start.x, 2) +
+                Math.pow(highlightedLine.path.end.y - highlightedLine.path.start.y, 2)
+              )
+            )} unidades
+          </div>
+          {/* Velocidad mejorada */}
+          <div>
+            <span className="font-semibold">Velocidad:</span> {formatFeedrate(highlightedLine.path)}
+          </div>
+          {/* Mostrar comando original */}
+          {highlightedLine.path.command && (
+            <div>
+              <span className="font-semibold">Comando:</span> {highlightedLine.path.command.code}
+              {Object.entries(highlightedLine.path.command.params).map(([key, value]) => 
+                ` ${key}${value}`
+              )}
+            </div>
+          )}
+          {/* Mostrar comentario si existe */}
+          {highlightedLine.path.command?.comment && (
+            <div>
+              <span className="font-semibold">Comentario:</span> {highlightedLine.path.command.comment}
+            </div>
+          )}
+        </div>
+      )}
       <div className="absolute bottom-1 right-1 bg-white p-0.5 rounded shadow">
         <div className="flex space-x-1">
           <button 
