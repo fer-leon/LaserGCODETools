@@ -38,9 +38,20 @@ const GCodePage: React.FC = () => {
     centroid: null
   });
 
+  // Nuevo estado para el contenido GCODE corregido
+  const [correctedGCodeContent, setCorrectedGCodeContent] = useState<string | null>(null);
+  
+  // Nuevo estado para el mensaje de guardado
+  const [saveMessage, setSaveMessage] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
+
   const handleFileLoaded = (content: string, name: string) => {
     setGcodeContent(content);
     setFileName(name);
+    // Limpiar mensajes antiguos cuando se carga un nuevo archivo
+    setSaveMessage(null);
   };
 
   // Aplicar la corrección cuando cambia el gcode, coeficiente o eje
@@ -54,6 +65,7 @@ const GCodePage: React.FC = () => {
         centroid: null
       });
       setTimeEstimation(null);
+      setCorrectedGCodeContent(null);
       return;
     }
 
@@ -77,6 +89,9 @@ const GCodePage: React.FC = () => {
       centroid
     });
 
+    // Guardar el contenido GCODE corregido
+    setCorrectedGCodeContent(result.correctedGCode || null);
+
     // Estimar tiempo de ejecución
     if (result.correctedPaths) {
       const timeResult = TimeEstimator.estimateTime(
@@ -87,6 +102,60 @@ const GCodePage: React.FC = () => {
       setTimeEstimation(timeResult);
     }
   }, [gcodeContent, correctionCoefficient, correctionAxis, acceleration]);
+
+  // Función para guardar el archivo GCODE corregido
+  const handleSaveFile = async () => {
+    if (!correctedGCodeContent) {
+      setSaveMessage({
+        type: 'error',
+        text: 'No hay contenido corregido para guardar'
+      });
+      return;
+    }
+
+    try {
+      // Generar un nombre sugerido basado en el archivo original
+      const suggestedName = fileName 
+        ? `${fileName.split('.').slice(0, -1).join('.')}_corrected.gcode`
+        : 'corrected.gcode';
+
+      // Acceder a la API de Electron
+      const electronAPI = (window as any).electronAPI;
+      if (!electronAPI) {
+        setSaveMessage({
+          type: 'error',
+          text: 'Error: API de Electron no disponible'
+        });
+        return;
+      }
+
+      // Llamar al método de guardar archivo
+      const result = await electronAPI.saveFile(correctedGCodeContent, suggestedName);
+      
+      if (result.success) {
+        setSaveMessage({
+          type: 'success',
+          text: `Archivo guardado exitosamente`
+        });
+        
+        // Limpiar el mensaje después de 3 segundos
+        setTimeout(() => {
+          setSaveMessage(null);
+        }, 3000);
+      } else {
+        setSaveMessage({
+          type: 'error',
+          text: `Error al guardar: ${result.error}`
+        });
+      }
+    } catch (error) {
+      console.error('Error saving file:', error);
+      setSaveMessage({
+        type: 'error',
+        text: 'Error inesperado al guardar el archivo'
+      });
+    }
+  };
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-2">
@@ -144,7 +213,57 @@ const GCodePage: React.FC = () => {
                         {TimeEstimator.formatTime(timeEstimation.cuttingTime)}
                       </span>
                     </div>
+                    
+                    {timeEstimation.originalTotalTime && timeEstimation.timeSavings && (
+                      <>
+                        <div className="border-t border-gray-200 my-1 pt-1"></div>
+                        
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Tiempo original:</span>
+                          <span>
+                            {TimeEstimator.formatTime(timeEstimation.originalTotalTime)}
+                          </span>
+                        </div>
+                        
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Ahorro de tiempo:</span>
+                          <span className="text-green-600 font-medium">
+                            {TimeEstimator.formatTime(timeEstimation.timeSavings)}
+                            {' '}
+                            ({((timeEstimation.timeSavings / timeEstimation.originalTotalTime) * 100).toFixed(1)}%)
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
+                </div>
+              )}
+              
+              {/* Botón de guardar archivo corregido */}
+              {viewMode === 'corrected' && correctedGCodeContent && (
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <button
+                    onClick={handleSaveFile}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded flex items-center justify-center space-x-1"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    <span className="text-sm">Guardar GCODE Corregido</span>
+                  </button>
+                  
+                  {/* Mensaje de éxito o error */}
+                  {saveMessage && (
+                    <div 
+                      className={`mt-2 p-2 text-xs rounded text-center
+                        ${saveMessage.type === 'success' ? 'bg-green-100 text-green-800' : ''}
+                        ${saveMessage.type === 'error' ? 'bg-red-100 text-red-800' : ''}
+                        ${saveMessage.type === 'info' ? 'bg-blue-100 text-blue-800' : ''}
+                      `}
+                    >
+                      {saveMessage.text}
+                    </div>
+                  )}
                 </div>
               )}
               

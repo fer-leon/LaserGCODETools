@@ -1,102 +1,122 @@
-import GCodeParser, { GCodePath, Point2D } from './GCodeParser';
+import GCodeParser, { GCodePath, GCodeCommand } from "./GCodeParser";
 
-interface CorrectionSettings {
-  coefficient: number; // 0-1, grado de corrección
-  axis: 'X' | 'Y';     // Eje a corregir
+interface CorrectionOptions {
+  coefficient: number;  // Factor de corrección (0-1)
+  axis: 'X' | 'Y';      // Eje a corregir
 }
 
-interface CorrectionResult {
-  originalPaths: GCodePath[];
-  correctedPaths: GCodePath[];
-  correctionFactors: number[]; // Valor de corrección (0-1) para cada línea
-}
-
-export class GCodeCorrector {
-  private parser: GCodeParser;
-
-  constructor() {
-    this.parser = new GCodeParser();
-  }
-
+class GCodeCorrector {
   /**
-   * Aplica correcciones al GCODE según los ajustes dados
+   * Aplica una corrección de velocidad basada en la posición en un eje específico
    */
-  applyCorrection(gcode: string, settings: CorrectionSettings): CorrectionResult {
-    // Parsear primero el GCODE original
-    this.parser.parseGCode(gcode);
-    const originalPaths = this.parser.getPaths();
+  applyCorrection(gcode: string, options: CorrectionOptions) {
+    const parser = new GCodeParser();
+    parser.parseGCode(gcode);
     
-    // Crear arrays para almacenar resultados
+    // Obtener los paths originales
+    const originalPaths = parser.getPaths();
+    
+    // Encontrar el rango del eje seleccionado
+    const bbox = parser.getBoundingBox();
+    const minPos = options.axis === 'X' ? bbox.min.x : bbox.min.y;
+    const maxPos = options.axis === 'X' ? bbox.max.x : bbox.max.y;
+    const range = maxPos - minPos;
+    
+    // Crear copias de los paths para aplicar corrección
     const correctedPaths: GCodePath[] = [];
     const correctionFactors: number[] = [];
-
-    // Aplicar corrección a cada línea
-    originalPaths.forEach(path => {
-      // Calcular la pendiente de la línea
-      const dx = path.end.x - path.start.x;
-      const dy = path.end.y - path.start.y;
-      
-      // Evitar división por cero
-      if (dx === 0 && dy === 0) {
-        // Punto a punto, no se aplica corrección
+    
+    // Construir el GCODE corregido
+    let correctedGCode = '';
+    const originalLines = gcode.split('\n');
+    let currentLineIndex = 0;
+    
+    // Procesar cada path
+    originalPaths.forEach((path, i) => {
+      // Ignorar movimientos rápidos (G0)
+      if (path.isRapid) {
         correctedPaths.push({...path});
-        correctionFactors.push(0);
+        correctionFactors.push(0); // No correction for rapid moves
+        
+        // Añadir esta línea sin cambios al GCODE corregido
+        if (path.command && path.command.lineNumber !== undefined) {
+          while (currentLineIndex <= path.command.lineNumber) {
+            correctedGCode += originalLines[currentLineIndex] + '\n';
+            currentLineIndex++;
+          }
+        }
         return;
       }
       
-      // Calcular factor de corrección según la pendiente
-      let correctionFactor = 0;
+      // Calcular posición relativa en el eje (0-1)
+      const startPos = options.axis === 'X' ? path.start.x : path.start.y;
+      const endPos = options.axis === 'X' ? path.end.x : path.end.y;
       
-      if (settings.axis === 'X') {
-        // Para corrección en X, la corrección es proporcional al ángulo con el eje X
-        // Una línea horizontal (dy=0) tiene factor 0, una vertical tiene factor 1
-        correctionFactor = Math.abs(dy) / (Math.abs(dx) + Math.abs(dy));
-      } else {
-        // Para corrección en Y, la corrección es proporcional al ángulo con el eje Y
-        // Una línea vertical (dx=0) tiene factor 0, una horizontal tiene factor 1
-        correctionFactor = Math.abs(dx) / (Math.abs(dx) + Math.abs(dy));
-      }
+      // Usar la posición media del segmento
+      const midPos = (startPos + endPos) / 2;
+      const relativePos = range ? (midPos - minPos) / range : 0;
       
-      // Aplicar coeficiente de corrección global
-      correctionFactor *= settings.coefficient;
-      
-      // Guardamos el factor para visualización
+      // Calcular factor de corrección basado en la posición
+      // Más cerca a 1.0 significa más reducción en la velocidad
+      const correctionFactor = options.coefficient * relativePos;
       correctionFactors.push(correctionFactor);
       
-      // Crear una copia del path original
-      const correctedPath = {...path};
+      // Aplicar corrección a la velocidad (feedrate)
+      const originalFeedrate = path.feedrate || 0;
+      const correctedFeedrate = originalFeedrate * (1 - correctionFactor);
       
-      // Si es un movimiento de corte (no rápido), aplicamos corrección a la velocidad
-      if (!path.isRapid && path.feedrate) {
-        // Reducir la velocidad según el factor de corrección
-        // Cuanto mayor sea el factor de corrección, más se reduce la velocidad
-        const reductionFactor = 1 - correctionFactor;
-        correctedPath.feedrate = path.feedrate * reductionFactor;
+      // Crear copia del path con velocidad corregida
+      correctedPaths.push({
+        ...path,
+        feedrate: correctedFeedrate
+      });
+      
+      // Modificar el GCODE para este comando
+      if (path.command && path.command.lineNumber !== undefined) {
+        // Copiar todas las líneas hasta este comando
+        while (currentLineIndex < path.command.lineNumber) {
+          correctedGCode += originalLines[currentLineIndex] + '\n';
+          currentLineIndex++;
+        }
+        
+        // Ahora estamos en la línea del comando
+        const line = originalLines[currentLineIndex];
+        
+        // Si el comando tiene feedrate (F), reemplazarlo
+        if (path.command.params.F !== undefined) {
+          // Crear un nuevo comando con la velocidad corregida
+          const correctedLine = line.replace(/F\d+(\.\d+)?/, `F${Math.round(correctedFeedrate)}`);
+          correctedGCode += correctedLine + '\n';
+        } else {
+          // Si no tiene F, añadir uno
+          const commentIndex = line.indexOf(';');
+          if (commentIndex >= 0) {
+            // Si hay un comentario, insertar antes del comentario
+            correctedGCode += line.substring(0, commentIndex) + 
+                             ` F${Math.round(correctedFeedrate)} ` + 
+                             line.substring(commentIndex) + '\n';
+          } else {
+            // Si no hay comentario, añadir al final
+            correctedGCode += line + ` F${Math.round(correctedFeedrate)}` + '\n';
+          }
+        }
+        
+        currentLineIndex++;
       }
-      
-      correctedPaths.push(correctedPath);
     });
-
+    
+    // Añadir el resto de líneas
+    while (currentLineIndex < originalLines.length) {
+      correctedGCode += originalLines[currentLineIndex] + '\n';
+      currentLineIndex++;
+    }
+    
     return {
       originalPaths,
       correctedPaths,
-      correctionFactors
+      correctionFactors,
+      correctedGCode
     };
-  }
-
-  /**
-   * Genera un GCODE nuevo con las correcciones aplicadas
-   */
-  generateCorrectedGCode(gcode: string, settings: CorrectionSettings): string {
-    // Aplicar correcciones
-    const { correctedPaths } = this.applyCorrection(gcode, settings);
-    
-    // Aquí transformaríamos los paths corregidos de nuevo a texto GCODE
-    // Esta implementación dependería de la estructura exacta del GCODE original
-    
-    // Para este ejemplo simplificado, solo devolvemos el GCODE original
-    // Una implementación real reconstruiría el GCODE con las velocidades corregidas
-    return gcode;
   }
 }
 
