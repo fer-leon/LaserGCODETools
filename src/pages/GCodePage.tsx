@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import FileUploader from '../components/FileUploader';
 import GCodeViewer from '../components/GCodeViewer';
 import CorrectionControls from '../components/CorrectionControls';
+import TimeEstimationConfig from '../components/TimeEstimationConfig';
 import GCodeCorrector from '../utils/GCodeCorrector';
 import GCodeParser from '../utils/GCodeParser';
+import { TimeEstimator, TimeEstimationResult } from '../utils/TimeEstimator';
 
 const GCodePage: React.FC = () => {
   const [gcodeContent, setGcodeContent] = useState<string | null>(null);
@@ -16,6 +18,10 @@ const GCodePage: React.FC = () => {
   // Estado para mostrar original o corregido
   const [viewMode, setViewMode] = useState<'original' | 'corrected'>('corrected');
   const [showComparison, setShowComparison] = useState<boolean>(true);
+  
+  // Estado para la estimación de tiempo
+  const [acceleration, setAcceleration] = useState<number>(500); // 500 mm/s² por defecto
+  const [timeEstimation, setTimeEstimation] = useState<TimeEstimationResult | null>(null);
   
   // Estados para los resultados de la corrección
   const [correctionResult, setCorrectionResult] = useState<{
@@ -47,6 +53,7 @@ const GCodePage: React.FC = () => {
         bbox: null,
         centroid: null
       });
+      setTimeEstimation(null);
       return;
     }
 
@@ -55,6 +62,7 @@ const GCodePage: React.FC = () => {
     parser.parseGCode(gcodeContent);
     const bbox = parser.getBoundingBox();
     const centroid = parser.getCentroid();
+    const originalPaths = parser.getPaths();
 
     // Aplicar corrección
     const corrector = new GCodeCorrector();
@@ -68,7 +76,17 @@ const GCodePage: React.FC = () => {
       bbox,
       centroid
     });
-  }, [gcodeContent, correctionCoefficient, correctionAxis]);
+
+    // Estimar tiempo de ejecución
+    if (result.correctedPaths) {
+      const timeResult = TimeEstimator.estimateTime(
+        result.correctedPaths, 
+        acceleration,
+        originalPaths
+      );
+      setTimeEstimation(timeResult);
+    }
+  }, [gcodeContent, correctionCoefficient, correctionAxis, acceleration]);
 
   return (
     <div className="flex flex-col h-full overflow-hidden p-2">
@@ -94,6 +112,41 @@ const GCodePage: React.FC = () => {
                 axis={correctionAxis}
                 onAxisChange={setCorrectionAxis}
               />
+              
+              <TimeEstimationConfig
+                acceleration={acceleration}
+                onAccelerationChange={setAcceleration}
+              />
+              
+              {/* Información de tiempo estimado */}
+              {timeEstimation && (
+                <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <h3 className="text-sm font-semibold mb-2">Tiempo Estimado</h3>
+                  
+                  <div className="space-y-1 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total:</span>
+                      <span className="font-medium">
+                        {TimeEstimator.formatTime(timeEstimation.totalTime)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Movimientos rápidos:</span>
+                      <span>
+                        {TimeEstimator.formatTime(timeEstimation.rapidTime)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Movimientos de corte:</span>
+                      <span>
+                        {TimeEstimator.formatTime(timeEstimation.cuttingTime)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {/* Controles para cambiar el modo de visualización */}
               <div className="p-2 bg-white rounded-lg shadow-sm space-y-2">
