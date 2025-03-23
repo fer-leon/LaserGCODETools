@@ -1,44 +1,37 @@
 import GCodeParser, { GCodePath, GCodeCommand } from "./GCodeParser";
 
 interface CorrectionOptions {
-  coefficient: number;  // Factor de corrección (0-1)
-  axis: 'X' | 'Y';      // Eje a corregir
+  coefficient: number;  // Correction factor (e.g., 0 to 0.99)
+  axis: 'X' | 'Y';      // Axis to correct based on segment orientation
 }
 
 class GCodeCorrector {
   /**
-   * Aplica una corrección de velocidad basada en la posición en un eje específico
+   * Applies a speed correction based on segment orientation.
+   * For axis 'X': horizontal segments get 0 correction; vertical get maximum.
+   * For axis 'Y': vertical segments get 0 correction; horizontal get maximum.
    */
   applyCorrection(gcode: string, options: CorrectionOptions) {
     const parser = new GCodeParser();
     parser.parseGCode(gcode);
     
-    // Obtener los paths originales
+    // Get original paths from parser
     const originalPaths = parser.getPaths();
     
-    // Encontrar el rango del eje seleccionado
-    const bbox = parser.getBoundingBox();
-    const minPos = options.axis === 'X' ? bbox.min.x : bbox.min.y;
-    const maxPos = options.axis === 'X' ? bbox.max.x : bbox.max.y;
-    const range = maxPos - minPos;
-    
-    // Crear copias de los paths para aplicar corrección
+    // Use copies of paths to apply correction
     const correctedPaths: GCodePath[] = [];
     const correctionFactors: number[] = [];
     
-    // Construir el GCODE corregido
+    // Build corrected GCODE output
     let correctedGCode = '';
     const originalLines = gcode.split('\n');
     let currentLineIndex = 0;
     
-    // Procesar cada path
     originalPaths.forEach((path, i) => {
-      // Ignorar movimientos rápidos (G0)
+      // Do not adjust rapid moves
       if (path.isRapid) {
-        correctedPaths.push({...path});
-        correctionFactors.push(0); // No correction for rapid moves
-        
-        // Añadir esta línea sin cambios al GCODE corregido
+        correctedPaths.push({ ...path });
+        correctionFactors.push(0);
         if (path.command && path.command.lineNumber !== undefined) {
           while (currentLineIndex <= path.command.lineNumber) {
             correctedGCode += originalLines[currentLineIndex] + '\n';
@@ -48,64 +41,59 @@ class GCodeCorrector {
         return;
       }
       
-      // Calcular posición relativa en el eje (0-1)
-      const startPos = options.axis === 'X' ? path.start.x : path.start.y;
-      const endPos = options.axis === 'X' ? path.end.x : path.end.y;
+      // Compute absolute differences
+      const dx = Math.abs(path.end.x - path.start.x);
+      const dy = Math.abs(path.end.y - path.start.y);
+      let orientationFactor = 0;
+      if (dx + dy > 0) {
+        if (options.axis === 'X') {
+          orientationFactor = dy / (dx + dy); // horizontal: 0, vertical: 1
+        } else {
+          orientationFactor = dx / (dx + dy); // vertical: 0, horizontal: 1
+        }
+      }
       
-      // Usar la posición media del segmento
-      const midPos = (startPos + endPos) / 2;
-      const relativePos = range ? (midPos - minPos) / range : 0;
+      // Effective correction is factor times coefficient
+      const effectiveCorrection = options.coefficient * orientationFactor;
+      correctionFactors.push(effectiveCorrection);
       
-      // Calcular factor de corrección basado en la posición
-      // Más cerca a 1.0 significa más reducción en la velocidad
-      const correctionFactor = options.coefficient * relativePos;
-      correctionFactors.push(correctionFactor);
-      
-      // Aplicar corrección a la velocidad (feedrate)
+      // Adjust the feedrate: original * (1 - effectiveCorrection)
       const originalFeedrate = path.feedrate || 0;
-      const correctedFeedrate = originalFeedrate * (1 - correctionFactor);
+      const correctedFeedrate = originalFeedrate * (1 - effectiveCorrection);
       
-      // Crear copia del path con velocidad corregida
+      // Create a new path copy with corrected feedrate
       correctedPaths.push({
         ...path,
-        feedrate: correctedFeedrate
+        feedrate: correctedFeedrate,
       });
       
-      // Modificar el GCODE para este comando
       if (path.command && path.command.lineNumber !== undefined) {
-        // Copiar todas las líneas hasta este comando
+        // Copy lines until the command line
         while (currentLineIndex < path.command.lineNumber) {
           correctedGCode += originalLines[currentLineIndex] + '\n';
           currentLineIndex++;
         }
         
-        // Ahora estamos en la línea del comando
+        // Modify command line to substitute the feedrate
         const line = originalLines[currentLineIndex];
-        
-        // Si el comando tiene feedrate (F), reemplazarlo
         if (path.command.params.F !== undefined) {
-          // Crear un nuevo comando con la velocidad corregida
+          // Replace existing F parameter
           const correctedLine = line.replace(/F\d+(\.\d+)?/, `F${Math.round(correctedFeedrate)}`);
           correctedGCode += correctedLine + '\n';
         } else {
-          // Si no tiene F, añadir uno
+          // Append feedrate if missing
           const commentIndex = line.indexOf(';');
           if (commentIndex >= 0) {
-            // Si hay un comentario, insertar antes del comentario
-            correctedGCode += line.substring(0, commentIndex) + 
-                             ` F${Math.round(correctedFeedrate)} ` + 
-                             line.substring(commentIndex) + '\n';
+            correctedGCode += line.substring(0, commentIndex) + ` F${Math.round(correctedFeedrate)} ` + line.substring(commentIndex) + '\n';
           } else {
-            // Si no hay comentario, añadir al final
             correctedGCode += line + ` F${Math.round(correctedFeedrate)}` + '\n';
           }
         }
-        
         currentLineIndex++;
       }
     });
     
-    // Añadir el resto de líneas
+    // Append any remaining lines
     while (currentLineIndex < originalLines.length) {
       correctedGCode += originalLines[currentLineIndex] + '\n';
       currentLineIndex++;

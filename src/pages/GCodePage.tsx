@@ -213,28 +213,6 @@ const GCodePage: React.FC = () => {
                         {TimeEstimator.formatTime(timeEstimation.cuttingTime)}
                       </span>
                     </div>
-                    
-                    {timeEstimation.originalTotalTime && timeEstimation.timeSavings && (
-                      <>
-                        <div className="border-t border-gray-200 my-1 pt-1"></div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Tiempo original:</span>
-                          <span>
-                            {TimeEstimator.formatTime(timeEstimation.originalTotalTime)}
-                          </span>
-                        </div>
-                        
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">Ahorro de tiempo:</span>
-                          <span className="text-green-600 font-medium">
-                            {TimeEstimator.formatTime(timeEstimation.timeSavings)}
-                            {' '}
-                            ({((timeEstimation.timeSavings / timeEstimation.originalTotalTime) * 100).toFixed(1)}%)
-                          </span>
-                        </div>
-                      </>
-                    )}
                   </div>
                 </div>
               )}

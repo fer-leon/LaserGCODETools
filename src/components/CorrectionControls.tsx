@@ -24,7 +24,7 @@ const CorrectionControls: React.FC<CorrectionControlsProps> = ({
         <input
           type="range"
           min="0"
-          max="1"
+          max="0.99"
           step="0.01"
           value={coefficient}
           onChange={(e) => onCoefficientChange(parseFloat(e.target.value))}
