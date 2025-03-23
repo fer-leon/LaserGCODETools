@@ -133,22 +133,69 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       ctx.stroke();
     }
     
-    // Draw axes with clearly separated lines
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 1;
+    // Draw axes with arrows (CAD style)
+    // Helper function to draw an arrow
+    const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string, text?: string) => {
+      const headLength = 10; // length of arrow head in pixels
+      const headAngle = Math.PI / 6; // 30 degrees angle for arrow head
+      
+      // Calculate the angle of the line
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      
+      // Draw the line
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // Draw the arrow head
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(
+        toX - headLength * Math.cos(angle - headAngle),
+        toY - headLength * Math.sin(angle - headAngle)
+      );
+      ctx.lineTo(
+        toX - headLength * Math.cos(angle + headAngle),
+        toY - headLength * Math.sin(angle + headAngle)
+      );
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+      
+      // Draw text label if provided
+      if (text) {
+        ctx.font = '12px Arial';
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, toX + 15 * Math.cos(angle), toY + 15 * Math.sin(angle));
+      }
+    };
     
-    // X-axis (horizontal)
-    ctx.beginPath();
-    const yAxisPos = canvas.height - offset.y; // Y position of X-axis
-    ctx.moveTo(0, yAxisPos);
-    ctx.lineTo(canvas.width, yAxisPos);
-    ctx.stroke();
+    // Get origin position in canvas coordinates
+    const originX = offset.x;
+    const originY = canvas.height - offset.y;
     
-    // Y-axis (vertical)
-    ctx.beginPath();
-    ctx.moveTo(offset.x, 0);
-    ctx.lineTo(offset.x, canvas.height);
-    ctx.stroke();
+    // Draw X axis with arrow
+    const xAxisLength = Math.min(150, canvas.width - originX - 20); // Limit length to available space
+    drawArrow(
+      originX, originY,
+      originX + xAxisLength, originY,
+      '#E74C3C', // Red for X axis
+      'X'
+    );
+    
+    // Draw Y axis with arrow
+    const yAxisLength = Math.min(150, originY - 20); // Limit length to available space
+    drawArrow(
+      originX, originY,
+      originX, originY - yAxisLength,
+      '#2ECC71', // Green for Y axis
+      'Y'
+    );
     
     // Draw paths
     paths.forEach(path => {
