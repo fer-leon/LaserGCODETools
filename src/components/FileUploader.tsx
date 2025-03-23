@@ -64,7 +64,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
       const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
       
       if (!validExtensions.includes(fileExtension)) {
-        alert('Por favor, arrastra solo archivos GCODE (.gcode, .nc, .g, .ngc)');
+        alert('Please drag only GCODE files (.gcode, .nc, .g, .ngc)');
         return;
       }
 
@@ -97,7 +97,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
     >
       <div className="text-center mb-1">
         <p className="text-gray-700 text-xs">
-          Arrastra tu archivo GCODE
+          Drag your GCODE file here
         </p>
       </div>
       
@@ -106,7 +106,7 @@ const FileUploader: React.FC<FileUploaderProps> = ({ onFileLoaded }) => {
           onClick={handleFileSelect}
           className="bg-blue-500 hover:bg-blue-700 text-white text-xs font-bold py-1 px-2 rounded"
         >
-          Seleccionar archivo
+          Select file
         </button>
       </div>
     </div>

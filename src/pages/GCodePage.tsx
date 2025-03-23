@@ -11,19 +11,19 @@ const GCodePage: React.FC = () => {
   const [gcodeContent, setGcodeContent] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string>('');
   
-  // Estados para la corrección
+  // States for correction
   const [correctionCoefficient, setCorrectionCoefficient] = useState<number>(0.5);
   const [correctionAxis, setCorrectionAxis] = useState<'X' | 'Y'>('X');
   
-  // Estado para mostrar original o corregido
+  // State to show original or corrected
   const [viewMode, setViewMode] = useState<'original' | 'corrected'>('corrected');
   const [showComparison, setShowComparison] = useState<boolean>(true);
   
-  // Estado para la estimación de tiempo
-  const [acceleration, setAcceleration] = useState<number>(500); // 500 mm/s² por defecto
+  // State for time estimation
+  const [acceleration, setAcceleration] = useState<number>(500); // 500 mm/s² by default
   const [timeEstimation, setTimeEstimation] = useState<TimeEstimationResult | null>(null);
   
-  // Estados para los resultados de la corrección
+  // States for correction results
   const [correctionResult, setCorrectionResult] = useState<{
     originalPaths: ReturnType<GCodeParser['getPaths']> | null;
     correctedPaths: ReturnType<GCodeParser['getPaths']> | null;
@@ -38,10 +38,10 @@ const GCodePage: React.FC = () => {
     centroid: null
   });
 
-  // Nuevo estado para el contenido GCODE corregido
+  // New state for corrected GCODE content
   const [correctedGCodeContent, setCorrectedGCodeContent] = useState<string | null>(null);
   
-  // Nuevo estado para el mensaje de guardado
+  // New state for save message
   const [saveMessage, setSaveMessage] = useState<{
     type: 'success' | 'error' | 'info';
     text: string;
@@ -50,11 +50,11 @@ const GCodePage: React.FC = () => {
   const handleFileLoaded = (content: string, name: string) => {
     setGcodeContent(content);
     setFileName(name);
-    // Limpiar mensajes antiguos cuando se carga un nuevo archivo
+    // Clear old messages when a new file is loaded
     setSaveMessage(null);
   };
 
-  // Aplicar la corrección cuando cambia el gcode, coeficiente o eje
+  // Apply correction when gcode, coefficient or axis changes
   useEffect(() => {
     if (!gcodeContent) {
       setCorrectionResult({
@@ -69,14 +69,14 @@ const GCodePage: React.FC = () => {
       return;
     }
 
-    // Parsear para obtener bbox y centroid
+    // Parse to get bbox and centroid
     const parser = new GCodeParser();
     parser.parseGCode(gcodeContent);
     const bbox = parser.getBoundingBox();
     const centroid = parser.getCentroid();
     const originalPaths = parser.getPaths();
 
-    // Aplicar corrección
+    // Apply correction
     const corrector = new GCodeCorrector();
     const result = corrector.applyCorrection(gcodeContent, {
       coefficient: correctionCoefficient,
@@ -89,10 +89,10 @@ const GCodePage: React.FC = () => {
       centroid
     });
 
-    // Guardar el contenido GCODE corregido
+    // Save corrected GCODE content
     setCorrectedGCodeContent(result.correctedGCode || null);
 
-    // Estimar tiempo de ejecución
+    // Estimate execution time
     if (result.correctedPaths) {
       const timeResult = TimeEstimator.estimateTime(
         result.correctedPaths, 
@@ -103,56 +103,56 @@ const GCodePage: React.FC = () => {
     }
   }, [gcodeContent, correctionCoefficient, correctionAxis, acceleration]);
 
-  // Función para guardar el archivo GCODE corregido
+  // Function to save the corrected GCODE file
   const handleSaveFile = async () => {
     if (!correctedGCodeContent) {
       setSaveMessage({
         type: 'error',
-        text: 'No hay contenido corregido para guardar'
+        text: 'No corrected content to save'
       });
       return;
     }
 
     try {
-      // Generar un nombre sugerido basado en el archivo original
+      // Generate a suggested name based on the original file
       const suggestedName = fileName 
         ? `${fileName.split('.').slice(0, -1).join('.')}_corrected.gcode`
         : 'corrected.gcode';
 
-      // Acceder a la API de Electron
+      // Access the Electron API
       const electronAPI = (window as any).electronAPI;
       if (!electronAPI) {
         setSaveMessage({
           type: 'error',
-          text: 'Error: API de Electron no disponible'
+          text: 'Error: Electron API not available'
         });
         return;
       }
 
-      // Llamar al método de guardar archivo
+      // Call the save file method
       const result = await electronAPI.saveFile(correctedGCodeContent, suggestedName);
       
       if (result.success) {
         setSaveMessage({
           type: 'success',
-          text: `Archivo guardado exitosamente`
+          text: `File saved successfully`
         });
         
-        // Limpiar el mensaje después de 3 segundos
+        // Clear the message after 3 seconds
         setTimeout(() => {
           setSaveMessage(null);
         }, 3000);
       } else {
         setSaveMessage({
           type: 'error',
-          text: `Error al guardar: ${result.error}`
+          text: `Error saving: ${result.error}`
         });
       }
     } catch (error) {
       console.error('Error saving file:', error);
       setSaveMessage({
         type: 'error',
-        text: 'Error inesperado al guardar el archivo'
+        text: 'Unexpected error saving file'
       });
     }
   };
@@ -160,16 +160,16 @@ const GCodePage: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden p-2">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-blue-700">Corrector GCODE para Láser</h1>
+        <h1 className="text-xl font-bold text-blue-700">GCODE Laser Correction Tool</h1>
         {fileName && (
           <h2 className="text-sm font-semibold bg-gray-100 px-2 py-1 rounded truncate max-w-xs">
-            Archivo: {fileName}
+            File: {fileName}
           </h2>
         )}
       </div>
       
       <div className="flex flex-1 min-h-0 space-x-2">
-        {/* Panel izquierdo: carga y controles */}
+        {/* Left panel: upload and controls */}
         <div className="w-64 flex flex-col space-y-2">
           <FileUploader onFileLoaded={handleFileLoaded} />
           
@@ -187,10 +187,10 @@ const GCodePage: React.FC = () => {
                 onAccelerationChange={setAcceleration}
               />
               
-              {/* Información de tiempo estimado */}
+              {/* Time estimation information */}
               {timeEstimation && (
                 <div className="p-2 bg-white rounded-lg shadow-sm">
-                  <h3 className="text-sm font-semibold mb-2">Tiempo Estimado</h3>
+                  <h3 className="text-sm font-semibold mb-2">Time Estimation</h3>
                   
                   <div className="space-y-1 text-xs">
                     <div className="flex justify-between">
@@ -201,14 +201,14 @@ const GCodePage: React.FC = () => {
                     </div>
                     
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Movimientos rápidos:</span>
+                      <span className="text-gray-600">Rapid movements:</span>
                       <span>
                         {TimeEstimator.formatTime(timeEstimation.rapidTime)}
                       </span>
                     </div>
                     
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Movimientos de corte:</span>
+                      <span className="text-gray-600">Cutting movements:</span>
                       <span>
                         {TimeEstimator.formatTime(timeEstimation.cuttingTime)}
                       </span>
@@ -217,7 +217,7 @@ const GCodePage: React.FC = () => {
                 </div>
               )}
               
-              {/* Botón de guardar archivo corregido */}
+              {/* Button to save corrected file */}
               {viewMode === 'corrected' && correctedGCodeContent && (
                 <div className="p-2 bg-white rounded-lg shadow-sm">
                   <button
@@ -227,10 +227,10 @@ const GCodePage: React.FC = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                     </svg>
-                    <span className="text-sm">Guardar GCODE Corregido</span>
+                    <span className="text-sm">Save Corrected GCODE</span>
                   </button>
                   
-                  {/* Mensaje de éxito o error */}
+                  {/* Success or error message */}
                   {saveMessage && (
                     <div 
                       className={`mt-2 p-2 text-xs rounded text-center
@@ -245,9 +245,9 @@ const GCodePage: React.FC = () => {
                 </div>
               )}
               
-              {/* Controles para cambiar el modo de visualización */}
+              {/* Controls to change display mode */}
               <div className="p-2 bg-white rounded-lg shadow-sm space-y-2">
-                <h3 className="text-sm font-semibold mb-2">Opciones de visualización</h3>              
+                <h3 className="text-sm font-semibold mb-2">Display Options</h3>              
                 <div className="flex justify-between space-x-2">
                   <button
                     className={`py-1 px-2 text-xs rounded-md flex-1 ${
@@ -267,26 +267,26 @@ const GCodePage: React.FC = () => {
                     }`}
                     onClick={() => setViewMode('corrected')}
                   >
-                    Corregido
+                    Corrected
                   </button>
                 </div>
               </div>
             </>
           ) : (
             <div className="p-2 text-center bg-gray-100 rounded-lg">
-              <p className="text-gray-600 text-xs">Carga un archivo GCODE para visualizarlo y aplicar correcciones</p>
+              <p className="text-gray-600 text-xs">Load a GCODE file to visualize and apply corrections</p>
             </div>
           )}
         </div>
         
-        {/* Panel principal: visualización única */}
+        {/* Main panel: single visualization */}
         <div className="flex-1 flex flex-col min-h-0">
           {gcodeContent ? (
             <div className="flex-1 border border-gray-200 rounded min-h-0">
               {viewMode === 'original' ? (
                 <GCodeViewer 
                   gcodeContent={gcodeContent}
-                  title="GCODE Original" 
+                  title="Original GCODE" 
                 />
               ) : (
                 <GCodeViewer 
@@ -297,7 +297,7 @@ const GCodePage: React.FC = () => {
                   customCentroid={correctionResult.centroid}
                   colorMode="correction"
                   showOriginal={showComparison}
-                  title="GCODE con Corrección de Velocidad"
+                  title="GCODE with Speed Correction"
                 />
               )}
             </div>

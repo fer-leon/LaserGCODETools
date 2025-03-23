@@ -142,7 +142,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     ctx.textAlign = 'center';
     ctx.fillText('0%', x, y + height + 12);
     ctx.fillText('100%', x + width, y + height + 12);
-    ctx.fillText('Reducción de velocidad', x + width/2, y + height + 24);
+    ctx.fillText('Speed reduction', x + width/2, y + height + 24);
   };
 
   // Función para mostrar la velocidad correctamente, considerando correcciones
@@ -160,9 +160,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     }
     
     if (originalValue !== undefined && originalValue !== feedrateValue) {
-      return `${formatCoordinate(feedrateValue)} unidades/min (original: ${formatCoordinate(originalValue)})`;
+      return `${formatCoordinate(feedrateValue)} units/min (original: ${formatCoordinate(originalValue)})`;
     } else {
-      return `${formatCoordinate(feedrateValue)} unidades/min`;
+      return `${formatCoordinate(feedrateValue)} units/min`;
     }
   };
 
@@ -653,30 +653,30 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           }}
         >
           <div>
-            <span className="font-semibold">Tipo:</span> {highlightedLine.path.isRapid ? 'Movimiento rápido' : 'Corte'}
+            <span className="font-semibold">Type:</span> {highlightedLine.path.isRapid ? 'Fast movement' : 'Cut'}
           </div>
           <div>
-            <span className="font-semibold">Inicio:</span> X:{formatCoordinate(highlightedLine.path.start.x)} Y:{formatCoordinate(highlightedLine.path.start.y)}
+            <span className="font-semibold">Start:</span> X:{formatCoordinate(highlightedLine.path.start.x)} Y:{formatCoordinate(highlightedLine.path.start.y)}
           </div>
           <div>
-            <span className="font-semibold">Fin:</span> X:{formatCoordinate(highlightedLine.path.end.x)} Y:{formatCoordinate(highlightedLine.path.end.y)}
+            <span className="font-semibold">End:</span> X:{formatCoordinate(highlightedLine.path.end.x)} Y:{formatCoordinate(highlightedLine.path.end.y)}
           </div>
           <div>
-            <span className="font-semibold">Distancia:</span> {formatCoordinate(
+            <span className="font-semibold">Distance:</span> {formatCoordinate(
               Math.sqrt(
                 Math.pow(highlightedLine.path.end.x - highlightedLine.path.start.x, 2) +
                 Math.pow(highlightedLine.path.end.y - highlightedLine.path.start.y, 2)
               )
-            )} unidades
+            )} units
           </div>
           {/* Información de velocidad mejorada mostrando original vs corregida */}
           <div>
-            <span className="font-semibold">Velocidad:</span> {formatFeedrate(highlightedLine.path, highlightedLine.index)}
+            <span className="font-semibold">Speed:</span> {formatFeedrate(highlightedLine.path, highlightedLine.index)}
           </div>
           {/* Información adicional para el modo corrección */}
           {colorMode === 'correction' && correctionFactors && (
             <div>
-              <span className="font-semibold">Reducción de velocidad:</span> {
+              <span className="font-semibold">Speed reduction</span> {
                 (correctionFactors[highlightedLine.index] * 100).toFixed(1)
               }%
             </div>
@@ -684,7 +684,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           {/* Información del comando */}
           {highlightedLine.path.command && (
             <div>
-              <span className="font-semibold">Comando:</span> {highlightedLine.path.command.code}
+              <span className="font-semibold">Command:</span> {highlightedLine.path.command.code}
               {Object.entries(highlightedLine.path.command.params).map(([key, value]) => 
                 ` ${key}${value}`
               )}
@@ -693,7 +693,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           {/* Mostrar comentario si existe */}
           {highlightedLine.path.command?.comment && (
             <div>
-              <span className="font-semibold">Comentario:</span> {highlightedLine.path.command.comment}
+              <span className="font-semibold">Comment:</span> {highlightedLine.path.command.comment}
             </div>
           )}
         </div>
