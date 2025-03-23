@@ -19,10 +19,14 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     centroid: ReturnType<GCodeParser['getCentroid']>
   } | null>(null);
 
+  // Store initial view settings for reset functionality
+  const initialViewRef = useRef<{ scale: number; offset: { x: number; y: number } } | null>(null);
+
   // Parse GCODE only when content changes
   useEffect(() => {
     if (!gcodeContent) {
       parsedDataRef.current = null;
+      initialViewRef.current = null;
       return;
     }
 
@@ -53,12 +57,18 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       
       // Usar el mayor entre la escala fija y la escala de ajuste
       const newScale = Math.max(fixedScale, fitScale * 0.9);
-      setScale(newScale);
       
       // CORREGIDO: Para ser coherente con la transformación al renderizar
       const newOffsetX = canvas.width / 2 - centroid.x * newScale;
       const newOffsetY = canvas.height / 2 + centroid.y * newScale - canvas.height;
       
+      // Store initial view settings
+      initialViewRef.current = {
+        scale: newScale,
+        offset: { x: newOffsetX, y: newOffsetY }
+      };
+      
+      setScale(newScale);
       setOffset({ x: newOffsetX, y: newOffsetY });
     }
   }, [gcodeContent]);
@@ -320,31 +330,13 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     };
   }, [scale, offset, renderCanvas, isDragging]);
 
-  // Reset view button handler
+  // Reset view button handler - simplified to restore initial view exactly
   const handleReset = () => {
-    if (!parsedDataRef.current || !canvasRef.current) return;
+    if (!initialViewRef.current) return;
     
-    const canvas = canvasRef.current;
-    const { bbox, centroid } = parsedDataRef.current;
-    
-    // Usar la misma lógica que en el efecto inicial
-    const fixedScale = 0.5;
-    
-    const padding = 20;
-    const xRange = bbox.max.x - bbox.min.x;
-    const yRange = bbox.max.y - bbox.min.y;
-    
-    const xScale = (canvas.width - 2 * padding) / (xRange || 1);
-    const yScale = (canvas.height - 2 * padding) / (yRange || 1);
-    const fitScale = Math.min(xScale, yScale);
-    
-    const newScale = Math.max(fixedScale, fitScale * 0.5);
-    
-    const newOffsetX = canvas.width / 2 - centroid.x * newScale;
-    const newOffsetY = canvas.height / 2 + centroid.y * newScale - canvas.height;
-    
-    setScale(newScale);
-    setOffset({ x: newOffsetX, y: newOffsetY });
+    // Simply restore the initial scale and offset values
+    setScale(initialViewRef.current.scale);
+    setOffset(initialViewRef.current.offset);
   };
 
   return (
