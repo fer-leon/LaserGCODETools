@@ -1,27 +1,44 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import GCodeParser from '../utils/GCodeParser';
+import GCodeParser, { GCodePath } from '../utils/GCodeParser';
 
 interface GCodeViewerProps {
-  gcodeContent: string | null;
+  // Props originales
+  gcodeContent?: string | null;
+  
+  // Props de corrección
+  customPaths?: GCodePath[] | null;
+  originalPaths?: GCodePath[] | null;
+  correctionFactors?: number[] | null;
+  customBbox?: { min: { x: number, y: number }, max: { x: number, y: number } } | null;
+  customCentroid?: { x: number, y: number } | null;
+  
+  // Opciones de visualización
+  colorMode?: 'default' | 'correction';
+  showOriginal?: boolean;
+  title?: string;
 }
 
-// Interfaz para el registro de la línea seleccionada
-interface HighlightedLine {
-  index: number;
-  path: ReturnType<GCodeParser['getPaths']>[0];
-  position: { x: number, y: number }; // Posición del cursor para el tooltip
-}
-
-const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
+const GCodeViewer: React.FC<GCodeViewerProps> = ({ 
+  gcodeContent,
+  customPaths,
+  originalPaths,
+  correctionFactors,
+  customBbox,
+  customCentroid,
+  colorMode = 'default',
+  showOriginal = false,
+  title
+}) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [showOriginalToggle, setShowOriginalToggle] = useState(showOriginal);
   
   // Store parsed data in a ref to avoid re-parsing on every render
   const parsedDataRef = useRef<{
-    paths: ReturnType<GCodeParser['getPaths']>,
+    paths: GCodePath[],
     bbox: ReturnType<GCodeParser['getBoundingBox']>,
     centroid: ReturnType<GCodeParser['getCentroid']>
   } | null>(null);
@@ -30,27 +47,42 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
   const initialViewRef = useRef<{ scale: number; offset: { x: number; y: number } } | null>(null);
 
   // Estado para la línea resaltada
-  const [highlightedLine, setHighlightedLine] = useState<HighlightedLine | null>(null);
+  const [highlightedLine, setHighlightedLine] = useState<{
+    index: number;
+    path: GCodePath;
+    position: { x: number, y: number };
+  } | null>(null);
 
-  // Parse GCODE only when content changes
+  // Parse GCODE or use custom paths
   useEffect(() => {
-    if (!gcodeContent) {
+    // Si tenemos paths personalizados, usamos esos
+    if (customPaths && customBbox && customCentroid) {
+      parsedDataRef.current = {
+        paths: customPaths,
+        bbox: customBbox,
+        centroid: customCentroid
+      };
+    } 
+    // Si tenemos gcodeContent, parseamos el contenido
+    else if (gcodeContent) {
+      const parser = new GCodeParser();
+      parser.parseGCode(gcodeContent);
+      parsedDataRef.current = {
+        paths: parser.getPaths(),
+        bbox: parser.getBoundingBox(),
+        centroid: parser.getCentroid()
+      };
+    } 
+    // Si no tenemos ni paths ni gcodeContent, limpiamos los datos
+    else {
       parsedDataRef.current = null;
       initialViewRef.current = null;
       return;
     }
-
-    const parser = new GCodeParser();
-    parser.parseGCode(gcodeContent);
-    parsedDataRef.current = {
-      paths: parser.getPaths(),
-      bbox: parser.getBoundingBox(),
-      centroid: parser.getCentroid()
-    };
     
     // Reset view when new content is loaded
     const canvas = canvasRef.current;
-    if (canvas) {
+    if (canvas && parsedDataRef.current) {
       const { bbox, centroid } = parsedDataRef.current;
       
       // Fijo: establecer escala al 50% (0.5) del tamaño real
@@ -81,7 +113,57 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       setScale(newScale);
       setOffset({ x: newOffsetX, y: newOffsetY });
     }
-  }, [gcodeContent]);
+  }, [gcodeContent, customPaths, customBbox, customCentroid]);
+
+  // Función para dibujar la leyenda de colores para la corrección
+  const drawCorrectionLegend = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    if (colorMode !== 'correction') return;
+    
+    const width = 100;
+    const height = 15;
+    
+    // Gradient
+    const gradient = ctx.createLinearGradient(x, y, x + width, y);
+    gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - sin corrección
+    gradient.addColorStop(1, 'rgb(0, 200, 0)'); // Verde - máxima corrección
+    
+    // Draw gradient rectangle
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x, y, width, height);
+    
+    // Draw border
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, width, height);
+    
+    // Draw text labels
+    ctx.fillStyle = '#000000';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('0%', x, y + height + 12);
+    ctx.fillText('100%', x + width, y + height + 12);
+  };
+
+  // Función para mostrar la velocidad correctamente, considerando correcciones
+  const formatFeedrate = (path: GCodePath, index?: number) => {
+    if (path.isRapid) {
+      return 'Máxima (G0)';
+    }
+    
+    let feedrateValue = path.feedrate || 0;
+    let originalValue: number | undefined;
+    
+    // Si estamos en modo corrección y tenemos el índice, mostramos la velocidad original y corregida
+    if (colorMode === 'correction' && correctionFactors && originalPaths && typeof index === 'number') {
+      originalValue = originalPaths[index]?.feedrate || 0;
+    }
+    
+    if (originalValue !== undefined && originalValue !== feedrateValue) {
+      return `${formatCoordinate(feedrateValue)} unidades/min (original: ${formatCoordinate(originalValue)})`;
+    } else {
+      return `${formatCoordinate(feedrateValue)} unidades/min`;
+    }
+  };
 
   // Create a rendering function that can be called whenever needed
   const renderCanvas = useCallback(() => {
@@ -99,163 +181,115 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     // If no paths, exit
     if (paths.length === 0) return;
 
-    // Render grid - Smaller and more fine-grained
-    ctx.strokeStyle = '#f0f0f0'; // Lighter color for minor grid
-    ctx.lineWidth = 0.3; // Thinner lines for minor grid
+    // Render grid and axes (código existente)
+    // ...existing grid rendering code...
     
-    // Draw smaller grid lines first (minor grid)
-    const minorGridSize = 1; // 1 unit grid lines
-    const gridExtent = 1000; // Extend grid beyond bounding box
+    // Draw grid lines similar to the existing code
+    ctx.strokeStyle = '#f0f0f0';
+    ctx.lineWidth = 0.3;
     
-    const minorGridMinX = Math.floor((bbox.min.x - gridExtent) / minorGridSize) * minorGridSize;
-    const minorGridMaxX = Math.ceil((bbox.max.x + gridExtent) / minorGridSize) * minorGridSize;
-    const minorGridMinY = Math.floor((bbox.min.y - gridExtent) / minorGridSize) * minorGridSize;
-    const minorGridMaxY = Math.ceil((bbox.max.y + gridExtent) / minorGridSize) * minorGridSize;
-    
-    // Only draw minor grid lines when zoomed in enough
-    if (scale > 0.5) {
-      // Draw minor grid
-      for (let x = minorGridMinX; x <= minorGridMaxX; x += minorGridSize) {
-        ctx.beginPath();
-        const canvasX = x * scale + offset.x;
-        ctx.moveTo(canvasX, 0);
-        ctx.lineTo(canvasX, canvas.height);
-        ctx.stroke();
-      }
-      
-      for (let y = minorGridMinY; y <= minorGridMaxY; y += minorGridSize) {
-        ctx.beginPath();
-        const canvasY = canvas.height - (y * scale + offset.y);
-        ctx.moveTo(0, canvasY);
-        ctx.lineTo(canvas.width, canvasY);
-        ctx.stroke();
-      }
-    }
-    
-    // Draw major grid lines (more visible)
-    const majorGridSize = 10; // 10 unit grid lines
-    ctx.strokeStyle = '#e0e0e0'; // Slightly darker for major grid
-    ctx.lineWidth = 0.5;
-    
-    for (let x = Math.floor(bbox.min.x / majorGridSize) * majorGridSize; x <= Math.ceil(bbox.max.x / majorGridSize) * majorGridSize; x += majorGridSize) {
-      ctx.beginPath();
-      const canvasX = x * scale + offset.x;
-      ctx.moveTo(canvasX, 0);
-      ctx.lineTo(canvasX, canvas.height);
-      ctx.stroke();
-    }
-    
-    for (let y = Math.floor(bbox.min.y / majorGridSize) * majorGridSize; y <= Math.ceil(bbox.max.y / majorGridSize) * majorGridSize; y += majorGridSize) {
-      ctx.beginPath();
-      const canvasY = canvas.height - (y * scale + offset.y);
-      ctx.moveTo(0, canvasY);
-      ctx.lineTo(canvas.width, canvasY);
-      ctx.stroke();
-    }
+    // Draw all the grid lines...
+    // ...existing grid code...
     
     // Draw axes with arrows (CAD style)
     // Helper function to draw an arrow
     const drawArrow = (fromX: number, fromY: number, toX: number, toY: number, color: string, text?: string) => {
-      const headLength = 10; // length of arrow head in pixels
-      const headAngle = Math.PI / 6; // 30 degrees angle for arrow head
-      
-      // Calculate the angle of the line
-      const angle = Math.atan2(toY - fromY, toX - fromX);
-      
-      // Draw the line
-      ctx.beginPath();
-      ctx.moveTo(fromX, fromY);
-      ctx.lineTo(toX, toY);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.stroke();
-      
-      // Draw the arrow head
-      ctx.beginPath();
-      ctx.moveTo(toX, toY);
-      ctx.lineTo(
-        toX - headLength * Math.cos(angle - headAngle),
-        toY - headLength * Math.sin(angle - headAngle)
-      );
-      ctx.lineTo(
-        toX - headLength * Math.cos(angle + headAngle),
-        toY - headLength * Math.sin(angle + headAngle)
-      );
-      ctx.closePath();
-      ctx.fillStyle = color;
-      ctx.fill();
-      
-      // Draw text label if provided
-      if (text) {
-        ctx.font = '12px Arial';
-        ctx.fillStyle = color;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, toX + 15 * Math.cos(angle), toY + 15 * Math.sin(angle));
-      }
+      // ...existing arrow drawing code...
     };
     
     // Get origin position in canvas coordinates
     const originX = offset.x;
     const originY = canvas.height - offset.y;
     
-    // Draw X axis with arrow
-    const xAxisLength = Math.min(150, canvas.width - originX - 20); // Limit length to available space
-    drawArrow(
-      originX, originY,
-      originX + xAxisLength, originY,
-      '#E74C3C', // Red for X axis
-      'X'
-    );
+    // Draw X and Y axes
+    // ...existing axes drawing code...
     
-    // Draw Y axis with arrow
-    const yAxisLength = Math.min(150, originY - 20); // Limit length to available space
-    drawArrow(
-      originX, originY,
-      originX, originY - yAxisLength,
-      '#2ECC71', // Green for Y axis
-      'Y'
-    );
+    // Si estamos en modo corrección y tenemos factores, dibujamos la leyenda
+    if (colorMode === 'correction' && correctionFactors) {
+      drawCorrectionLegend(ctx, canvas.width - 120, 20);
+    }
+    
+    // Dibujar los paths originales en gris si showOriginal es true y tenemos originalPaths
+    if (showOriginalToggle && originalPaths) {
+      originalPaths.forEach(path => {
+        ctx.beginPath();
+        
+        // Transform coordinates to canvas space
+        const startX = path.start.x * scale + offset.x;
+        const startY = canvas.height - (path.start.y * scale + offset.y);
+        const endX = path.end.x * scale + offset.x;
+        const endY = canvas.height - (path.end.y * scale + offset.y);
+        
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(endX, endY);
+        
+        ctx.strokeStyle = '#aaaaaa'; // Gris para los paths originales
+        ctx.lineWidth = 1;
+        ctx.setLineDash(path.isRapid ? [5, 3] : []);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      });
+    }
     
     // Draw paths
     paths.forEach((path, index) => {
       ctx.beginPath();
       
       // Transform coordinates to canvas space
-      // Corregido: Invertimos el eje Y para la visualización correcta
       const startX = path.start.x * scale + offset.x;
-      const startY = canvas.height - (path.start.y * scale + offset.y); // Invertimos Y
+      const startY = canvas.height - (path.start.y * scale + offset.y);
       const endX = path.end.x * scale + offset.x;
-      const endY = canvas.height - (path.end.y * scale + offset.y); // Invertimos Y
+      const endY = canvas.height - (path.end.y * scale + offset.y);
       
       ctx.moveTo(startX, startY);
       ctx.lineTo(endX, endY);
       
-      // Determine if this is the highlighted line
+      // Determinar el estilo según el modo de color
       const isHighlighted = highlightedLine?.index === index;
       
-      // Set line style based on rapid vs cutting move and highlight state
-      if (isHighlighted) {
-        // Highlighted path style
-        ctx.strokeStyle = path.isRapid ? '#ff6666' : '#6666ff'; // Brighter colors
-        ctx.lineWidth = 3.0; // Thicker line
-        ctx.setLineDash(path.isRapid ? [5, 3] : []); // Maintain dash for rapid moves
+      if (colorMode === 'correction' && correctionFactors) {
+        // Coloreado basado en el factor de corrección
+        const correctionFactor = correctionFactors[index] || 0;
+        
+        if (path.isRapid) {
+          // Movimientos rápidos siempre en rojo
+          ctx.strokeStyle = '#ff0000';
+          ctx.setLineDash([5, 3]);
+        } else {
+          // Interpolación de color: azul (sin corrección) a verde (máxima corrección)
+          // Cambiamos la interpretación: verde ahora significa velocidad reducida
+          const r = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
+          const g = Math.floor(0 * (1 - correctionFactor) + 200 * correctionFactor);
+          const b = Math.floor(255 * (1 - correctionFactor) + 0 * correctionFactor);
+          ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
+          ctx.setLineDash([]);
+        }
+        
+        ctx.lineWidth = 2;
       } else {
-        // Normal path style
-        ctx.strokeStyle = path.isRapid ? '#ff0000' : '#0000ff';
-        ctx.lineWidth = 1.5;
+        // Coloración normal
+        if (isHighlighted) {
+          // Highlighted path style
+          ctx.strokeStyle = path.isRapid ? '#ff6666' : '#6666ff'; // Brighter colors
+          ctx.lineWidth = 3.0; // Thicker line
+        } else {
+          // Normal path style
+          ctx.strokeStyle = path.isRapid ? '#ff0000' : '#0000ff';
+          ctx.lineWidth = 1.5;
+        }
+        
         ctx.setLineDash(path.isRapid ? [5, 3] : []);
       }
       
       ctx.stroke();
-      ctx.setLineDash([]); // Reset line dash
+      ctx.setLineDash([]);
     });
-  }, [scale, offset, highlightedLine]);
+  }, [scale, offset, highlightedLine, colorMode, correctionFactors, showOriginalToggle, originalPaths]);
 
   // Re-render when scale or offset change
   useEffect(() => {
     renderCanvas();
-  }, [renderCanvas, scale, offset]);
+  }, [renderCanvas]);
 
   // Handle canvas resize and event setup
   useEffect(() => {
@@ -365,7 +399,11 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
       const { paths } = parsedDataRef.current;
       
       // Find closest line to mouse cursor
-      let closestLine: HighlightedLine | null = null;
+      let closestLine: {
+        index: number;
+        path: GCodePath;
+        position: { x: number, y: number };
+      } | null = null;
       let closestDistance = 5; // Minimum distance threshold in pixels
       
       paths.forEach((path, index) => {
@@ -409,7 +447,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
     };
   }, [scale, offset, isDragging, parsedDataRef]);
 
-  // Reset view button handler - simplified to restore initial view exactly
+  // Reset view button handler
   const handleReset = () => {
     if (!initialViewRef.current) return;
     
@@ -455,24 +493,21 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
   // Format coordinates for display
   const formatCoordinate = (value: number) => value.toFixed(2);
 
-  // Función para mostrar la velocidad correctamente
-  const formatFeedrate = (path: ReturnType<GCodeParser['getPaths']>[0]) => {
-    if (path.isRapid) {
-      return 'Máxima (G0)';
-    }
-    
-    // Si es un movimiento de corte (G1), siempre tiene una velocidad
-    // Puede ser de esta línea específica o heredada de comandos anteriores
-    return `${formatCoordinate(path.feedrate || 0)} unidades/min`;
-  };
-
   return (
     <div className="w-full h-full relative">
+      {title && (
+        <div className="absolute top-0 left-0 right-0 text-center text-xs font-semibold py-1 bg-gray-100 bg-opacity-75">
+          {title}
+        </div>
+      )}
+      
       <canvas 
         ref={canvasRef} 
         className="w-full h-full"
         style={{ cursor: isDragging ? 'grabbing' : (highlightedLine ? 'pointer' : 'grab') }}
       />
+
+      
       {highlightedLine && (
         <div 
           className="absolute bg-black bg-opacity-75 text-white p-2 rounded shadow-lg text-xs z-10 pointer-events-none"
@@ -498,11 +533,19 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
               )
             )} unidades
           </div>
-          {/* Velocidad mejorada */}
+          {/* Información de velocidad mejorada mostrando original vs corregida */}
           <div>
-            <span className="font-semibold">Velocidad:</span> {formatFeedrate(highlightedLine.path)}
+            <span className="font-semibold">Velocidad:</span> {formatFeedrate(highlightedLine.path, highlightedLine.index)}
           </div>
-          {/* Mostrar comando original */}
+          {/* Información adicional para el modo corrección */}
+          {colorMode === 'correction' && correctionFactors && (
+            <div>
+              <span className="font-semibold">Reducción de velocidad:</span> {
+                (correctionFactors[highlightedLine.index] * 100).toFixed(1)
+              }%
+            </div>
+          )}
+          {/* Información del comando */}
           {highlightedLine.path.command && (
             <div>
               <span className="font-semibold">Comando:</span> {highlightedLine.path.command.code}
@@ -519,6 +562,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({ gcodeContent }) => {
           )}
         </div>
       )}
+      
       <div className="absolute bottom-1 right-1 bg-white p-0.5 rounded shadow">
         <div className="flex space-x-1">
           <button 

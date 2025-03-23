@@ -1,16 +1,17 @@
-interface GCodeCommand {
+// Añadir exportación de interfaces
+export interface GCodeCommand {
   code: string;
   params: Record<string, number>;
   lineNumber: number;
   comment?: string;
 }
 
-interface Point2D {
+export interface Point2D {
   x: number;
   y: number;
 }
 
-interface GCodePath {
+export interface GCodePath {
   start: Point2D;
   end: Point2D;
   isRapid: boolean; // G0 commands are rapid movements
