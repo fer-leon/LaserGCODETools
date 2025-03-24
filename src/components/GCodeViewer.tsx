@@ -17,6 +17,13 @@ interface GCodeViewerProps {
   patternLegendType?: 'power' | 'speed' | 'correction';
   showOriginal?: boolean;
   title?: string;
+  
+  // Rangos para la leyenda
+  legendRanges?: {
+    power?: { min: number, max: number }; // en porcentaje (0-100)
+    speed?: { min: number, max: number }; // en unidades/min
+    correction?: { min: number, max: number }; // factor de 0-1
+  };
 }
 
 const GCodeViewer: React.FC<GCodeViewerProps> = ({ 
@@ -29,7 +36,12 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
   colorMode = 'default',
   patternLegendType = 'power',
   showOriginal = false,
-  title
+  title,
+  legendRanges = {
+    power: { min: 0, max: 100 },
+    speed: { min: 100, max: 3000 },
+    correction: { min: 0, max: 0.99 }
+  }
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
@@ -132,28 +144,41 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     
     // Configurar gradiente y texto según el modo y tipo
     let legendTitle = '';
+    let minLabel = '';
+    let maxLabel = '';
     
     if (colorMode === 'correction') {
       // Azul a Rojo para corrección
       gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - sin corrección
       gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - máxima corrección
       legendTitle = 'Speed reduction';
+      minLabel = '0%';
+      maxLabel = '100%';
     } else if (colorMode === 'pattern') {
       if (patternLegendType === 'power') {
         // Azul (min) a Rojo (max) para potencia
         gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - potencia mínima
         gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - potencia máxima
         legendTitle = 'Power (%)';
+        const range = legendRanges.power || { min: 0, max: 100 };
+        minLabel = `${range.min}%`;
+        maxLabel = `${range.max}%`;
       } else if (patternLegendType === 'speed') {
         // Verde (min) a Amarillo (max) para velocidad
         gradient.addColorStop(0, 'rgb(0, 128, 0)'); // Verde - velocidad mínima
         gradient.addColorStop(1, 'rgb(255, 255, 0)'); // Amarillo - velocidad máxima
         legendTitle = 'Speed (units/min)';
+        const range = legendRanges.speed || { min: 100, max: 3000 };
+        minLabel = `${range.min}`;
+        maxLabel = `${range.max}`;
       } else if (patternLegendType === 'correction') {
         // Púrpura (min) a Cian (max) para corrección
         gradient.addColorStop(0, 'rgb(128, 0, 128)'); // Púrpura - corrección mínima
         gradient.addColorStop(1, 'rgb(0, 255, 255)'); // Cian - corrección máxima
         legendTitle = 'Correction factor';
+        const range = legendRanges.correction || { min: 0, max: 0.99 };
+        minLabel = range.min.toFixed(2);
+        maxLabel = range.max.toFixed(2);
       }
     }
     
@@ -170,8 +195,8 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     ctx.fillStyle = '#000000';
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('Min', x, y + height + 12);
-    ctx.fillText('Max', x + width, y + height + 12);
+    ctx.fillText(minLabel, x, y + height + 12);
+    ctx.fillText(maxLabel, x + width, y + height + 12);
     ctx.fillText(legendTitle, x + width/2, y + height + 24);
   };
 
@@ -686,8 +711,6 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       // Analizar el comentario para obtener información
       const comment = path.command?.comment || '';
       
-      console.log("Comentario: ", comment); // DEBUG para ver los comentarios
-      
       // Expresiones regulares más precisas
       const powerXRegex = /Power-X=(\d+\.?\d*)%/;
       const powerYRegex = /Power-Y=(\d+\.?\d*)%/;
@@ -713,7 +736,12 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         
         if (powerMatch) {
           valueFound = true;
-          paramValue = parseFloat(powerMatch[1]) / 100; // Normalizar a 0-1
+          const powerValue = parseFloat(powerMatch[1]);
+          const powerRange = legendRanges.power || { min: 0, max: 100 };
+          
+          // Normalizar a 0-1 basado en el rango
+          paramValue = (powerValue - powerRange.min) / (powerRange.max - powerRange.min);
+          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
           // Azul a Rojo
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
@@ -732,13 +760,10 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         if (speedMatch) {
           valueFound = true;
           const speedValue = parseFloat(speedMatch[1]);
+          const speedRange = legendRanges.speed || { min: 100, max: 3000 };
           
-          // Ajustar el rango para normalizar según los valores comunes de velocidad
-          // Usar el valor mínimo/máximo configurado en la página de generación de patrones
-          const speedMin = 100;
-          const speedMax = 3000;
-          
-          paramValue = (speedValue - speedMin) / (speedMax - speedMin);
+          // Normalizar basado en el rango configurado
+          paramValue = (speedValue - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
           // Verde a Amarillo
@@ -756,8 +781,12 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         
         if (corrMatch) {
           valueFound = true;
-          paramValue = parseFloat(corrMatch[1]);
-          paramValue = Math.min(1, paramValue); // Limitar a 1
+          const corrValue = parseFloat(corrMatch[1]);
+          const corrRange = legendRanges.correction || { min: 0, max: 0.99 };
+          
+          // Normalizar basado en el rango configurado
+          paramValue = (corrValue - corrRange.min) / (corrRange.max - corrRange.min);
+          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
           // Púrpura a Cian
           const r = Math.floor(128 * (1 - paramValue) + 0 * paramValue);
@@ -771,17 +800,25 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       if (!valueFound) {
         // Usar el power o speed del path directamente si está disponible
         if (patternLegendType === 'power' && path.power !== undefined && path.laserOn) {
-          // Normalizar power de 0-1000 a 0-1
-          paramValue = path.power / 1000;
+          // Convertir power de S a porcentaje y normalizar
+          const powerPercent = GCodeParser.convertPowerToPercentage(path.power);
+          const powerRange = legendRanges.power || { min: 0, max: 100 };
+          
+          // Normalizar basado en el rango configurado
+          paramValue = (powerPercent - powerRange.min) / (powerRange.max - powerRange.min);
+          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+          
           // Azul a Rojo
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
           const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
           const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
           color = `rgb(${r}, ${g}, ${b})`;
         } else if (patternLegendType === 'speed' && path.feedrate !== undefined) {
-          // Normalizar speed
-          paramValue = (path.feedrate - 100) / (10000 - 100);
-          paramValue = Math.max(0, Math.min(1, paramValue));
+          // Normalizar speed basado en el rango configurado
+          const speedRange = legendRanges.speed || { min: 100, max: 3000 };
+          paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
+          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+          
           // Verde a Amarillo
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
           const g = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
