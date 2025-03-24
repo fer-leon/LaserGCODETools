@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import GCodeViewer from '../components/GCodeViewer';
+import TestPatternForm from '../components/TestPatternForm';
 
 const TestGeneratorPage: React.FC = () => {
   // Parámetros de configuración
@@ -133,194 +134,49 @@ const TestGeneratorPage: React.FC = () => {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 overflow-auto">
-      <h1 className="text-xl font-bold text-gray-800 mb-4">Laser Test Pattern Generator</h1>
-      
-      <div className="grid md:grid-cols-2 gap-4">
-        {/* Panel de configuración */}
-        <div className="bg-white rounded-lg shadow p-4">
-          <h2 className="text-lg font-semibold mb-3">Configuration</h2>
-          
-          <div className="grid grid-cols-2 gap-4">
-            {/* Configuración de velocidad */}
-            <div>
-              <h3 className="text-md font-medium mb-2">Speed (X axis)</h3>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Minimum Speed (units/min):
-                </label>
-                <input 
-                  type="number" 
-                  value={minSpeed}
-                  onChange={(e) => setMinSpeed(Number(e.target.value))}
-                  min="1"
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Maximum Speed (units/min):
-                </label>
-                <input 
-                  type="number" 
-                  value={maxSpeed}
-                  onChange={(e) => setMaxSpeed(Number(e.target.value))}
-                  min={minSpeed + 1}
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Speed Steps (columns):
-                </label>
-                <input 
-                  type="number" 
-                  value={speedSteps}
-                  onChange={(e) => setSpeedSteps(Number(e.target.value))}
-                  min="2"
-                  max="20"
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-            </div>
-            
-            {/* Configuración de potencia */}
-            <div>
-              <h3 className="text-md font-medium mb-2">Power (Y axis)</h3>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Minimum Power (%):
-                </label>
-                <input 
-                  type="number" 
-                  value={minPower}
-                  onChange={(e) => setMinPower(Number(e.target.value))}
-                  min="0"
-                  max="99"
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Maximum Power (%):
-                </label>
-                <input 
-                  type="number" 
-                  value={maxPower}
-                  onChange={(e) => setMaxPower(Number(e.target.value))}
-                  min={minPower + 1}
-                  max="100"
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-              <div className="mb-3">
-                <label className="block text-sm text-gray-600 mb-1">
-                  Power Steps (rows):
-                </label>
-                <input 
-                  type="number" 
-                  value={powerSteps}
-                  onChange={(e) => setPowerSteps(Number(e.target.value))}
-                  min="2"
-                  max="20"
-                  className="w-full p-1 border rounded"
-                />
-              </div>
-            </div>
-          </div>
-          
-          {/* Configuración de la geometría */}
-          <h3 className="text-md font-medium mt-2 mb-2">Geometry</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="mb-3">
-              <label className="block text-sm text-gray-600 mb-1">
-                Square Size (mm):
-              </label>
-              <input 
-                type="number" 
-                value={squareSize}
-                onChange={(e) => setSquareSize(Number(e.target.value))}
-                min="1"
-                className="w-full p-1 border rounded"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="block text-sm text-gray-600 mb-1">
-                Spacing (mm):
-              </label>
-              <input 
-                type="number" 
-                value={spacing}
-                onChange={(e) => setSpacing(Number(e.target.value))}
-                min="1"
-                className="w-full p-1 border rounded"
-              />
-            </div>
-          </div>
-          
-          {/* Opción de margen */}
-          <div className="mb-3">
-            <label className="block text-sm text-gray-600 mb-1">
-              Margin (mm):
-            </label>
-            <input 
-              type="number" 
-              value={margin}
-              onChange={(e) => setMargin(Number(e.target.value))}
-              min="1"
-              className="w-full p-1 border rounded"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Distance from origin to the test pattern
-            </p>
-          </div>
-          
-          {/* Opción para guardar */}
-          <div className="mt-4">
-            <label className="block text-sm text-gray-600 mb-1">
-              File Name:
-            </label>
-            <div className="flex">
-              <input 
-                type="text" 
-                value={fileName}
-                onChange={(e) => setFileName(e.target.value)}
-                className="flex-grow p-1 border rounded-l"
-              />
-              <button 
-                onClick={downloadGCode}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded-r"
-              >
-                Save
-              </button>
-            </div>
-          </div>
+    <div className="flex flex-col h-full overflow-hidden p-2">
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="text-xl font-bold text-blue-700">Laser Test Pattern Generator</h1>
+        </div>
+
+      <div className="flex-1 min-h-0 grid grid-cols-4 gap-3">
+        {/* Panel izquierdo - Configuración */}
+        <div className="col-span-1 flex flex-col space-y-3 overflow-hidden">
+          <TestPatternForm
+            minSpeed={minSpeed}
+            maxSpeed={maxSpeed}
+            minPower={minPower}
+            maxPower={maxPower}
+            speedSteps={speedSteps}
+            powerSteps={powerSteps}
+            squareSize={squareSize}
+            spacing={spacing}
+            margin={margin}
+            fileName={fileName}
+            onMinSpeedChange={setMinSpeed}
+            onMaxSpeedChange={setMaxSpeed}
+            onMinPowerChange={setMinPower}
+            onMaxPowerChange={setMaxPower}
+            onSpeedStepsChange={setSpeedSteps}
+            onPowerStepsChange={setPowerSteps}
+            onSquareSizeChange={setSquareSize}
+            onSpacingChange={setSpacing}
+            onMarginChange={setMargin}
+            onFileNameChange={setFileName}
+            onSave={downloadGCode}
+          />
         </div>
         
-        {/* Visualizador de GCODE */}
-        <div className="bg-white rounded-lg shadow p-4 h-[600px] flex flex-col">
-          <h2 className="text-lg font-semibold mb-3">Preview</h2>
-          <div className="flex-grow">
-            {generatedGCode ? (
-              <GCodeViewer gcodeContent={generatedGCode} />
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-500">
-                Configure parameters to generate a test pattern
-              </div>
-            )}
-          </div>
+        {/* Panel derecho - Visualizador */}
+        <div className="col-span-3 bg-white rounded-lg shadow-sm overflow-hidden border">
+          {generatedGCode ? (
+            <GCodeViewer gcodeContent={generatedGCode} />
+          ) : (
+            <div className="h-full flex items-center justify-center text-gray-500">
+              Configure parameters to generate a test pattern
+            </div>
+          )}
         </div>
-      </div>
-      
-      {/* Sección informativa */}
-      <div className="mt-4 bg-blue-50 p-4 rounded-lg">
-        <h3 className="text-md font-medium text-blue-800 mb-2">How to use this test pattern</h3>
-        <p className="text-sm text-blue-700">
-          This pattern creates a matrix of squares where speed increases from left to right (X axis)
-          and power increases from bottom to top (Y axis). Engrave this pattern on your material
-          to find the optimal combination of speed and power for your specific laser and material.
-          The ideal setting will create clear marks without burning or discoloration.
-        </p>
       </div>
     </div>
   );
