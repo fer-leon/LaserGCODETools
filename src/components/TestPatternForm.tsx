@@ -403,16 +403,7 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
           >
             Speed
           </button>
-          <button
-            className={`py-1 px-2 text-xs rounded ${
-              colorLegend === 'correction' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-gray-200 hover:bg-gray-300'
-            }`}
-            onClick={() => onColorLegendChange('correction')}
-          >
-            Correction
-          </button>
+          
         </div>
         <div className="mt-1 text-xs text-gray-600">
           Select which parameter will be visualized with color in the preview.
