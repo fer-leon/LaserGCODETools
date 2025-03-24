@@ -143,7 +143,7 @@ export class TimeEstimator {
    */
   public static formatTime(seconds: number): string {
     if (seconds < 60) {
-      return `${seconds.toFixed(1)} segundos`;
+      return `${seconds.toFixed(1)} seconds`;
     } else if (seconds < 3600) {
       const minutes = Math.floor(seconds / 60);
       const remainingSeconds = seconds % 60;
