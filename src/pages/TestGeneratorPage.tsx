@@ -25,7 +25,7 @@ const TestGeneratorPage: React.FC = () => {
   // Función para generar el patrón de prueba GCODE
   const generateTestPattern = () => {
     let gcode = `;Laser Test Pattern Generator\n`;
-    gcode += `;Speed: ${minSpeed}-${maxSpeed} mm/min in ${speedSteps} steps\n`;
+    gcode += `;Speed: ${minSpeed}-${maxSpeed} units/min in ${speedSteps} steps\n`;
     gcode += `;Power: ${minPower}-${maxPower}% in ${powerSteps} steps\n`;
     gcode += `;Square Size: ${squareSize}mm, Spacing: ${spacing}mm, Margin: ${margin}mm\n\n`;
     
@@ -70,7 +70,7 @@ const TestGeneratorPage: React.FC = () => {
         const xPos = matrixStartX + s * (squareSize + spacing);
         const yPos = matrixStartY + p * (squareSize + spacing);
         
-        gcode += `; Square at Speed ${Math.round(speed)} mm/min, Power ${Math.round(power)}%\n`;
+        gcode += `; Square at Speed ${Math.round(speed)} units/min, Power ${Math.round(power)}%\n`;
         gcode += `G0 X${xPos} Y${yPos} ; Move to start position\n`;
         gcode += `M3 S${normalizedPower} ; Set laser power\n`;
         
@@ -147,7 +147,7 @@ const TestGeneratorPage: React.FC = () => {
               <h3 className="text-md font-medium mb-2">Speed (X axis)</h3>
               <div className="mb-3">
                 <label className="block text-sm text-gray-600 mb-1">
-                  Minimum Speed (mm/min):
+                  Minimum Speed (units/min):
                 </label>
                 <input 
                   type="number" 
@@ -159,7 +159,7 @@ const TestGeneratorPage: React.FC = () => {
               </div>
               <div className="mb-3">
                 <label className="block text-sm text-gray-600 mb-1">
-                  Maximum Speed (mm/min):
+                  Maximum Speed (units/min):
                 </label>
                 <input 
                   type="number" 

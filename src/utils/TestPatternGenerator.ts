@@ -29,7 +29,7 @@ export class TestPatternGenerator {
     } = config;
 
     let gcode = `;Laser Test Pattern Generator\n`;
-    gcode += `;Speed: ${minSpeed}-${maxSpeed} mm/min in ${speedSteps} steps\n`;
+    gcode += `;Speed: ${minSpeed}-${maxSpeed} units/min in ${speedSteps} steps\n`;
     gcode += `;Power: ${minPower}-${maxPower}% in ${powerSteps} steps\n`;
     gcode += `;Square Size: ${squareSize}mm, Spacing: ${spacing}mm\n\n`;
     
@@ -69,7 +69,7 @@ export class TestPatternGenerator {
         const xPos = s * (squareSize + spacing);
         const yPos = p * (squareSize + spacing);
         
-        gcode += `; Square at Speed ${Math.round(speed)} mm/min, Power ${Math.round(power)}%\n`;
+        gcode += `; Square at Speed ${Math.round(speed)} units/min, Power ${Math.round(power)}%\n`;
         gcode += `G0 X${xPos} Y${yPos} ; Move to start position\n`;
         gcode += `M3 S${normalizedPower} ; Set laser power\n`;
         

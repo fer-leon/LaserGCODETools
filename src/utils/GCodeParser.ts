@@ -16,6 +16,8 @@ export interface GCodePath {
   end: Point2D;
   isRapid: boolean; // G0 commands are rapid movements
   feedrate?: number; // Velocidad de movimiento (valor F)
+  power?: number;    // Potencia del láser (valor S, 0-255)
+  laserOn?: boolean; // Estado del láser (encendido/apagado)
   command?: GCodeCommand; // Comando original para referencias adicionales
 }
 
@@ -24,12 +26,16 @@ export class GCodeParser {
   private paths: GCodePath[] = [];
   private commands: GCodeCommand[] = [];
   private currentFeedrate: number = 0; // Valor actual de feedrate
+  private currentPower: number = 0;    // Valor actual de potencia (0-255)
+  private laserOn: boolean = false;    // Estado del láser
 
   parseGCode(gcode: string): void {
     this.commands = [];
     this.paths = [];
     this.currentPosition = { x: 0, y: 0 };
     this.currentFeedrate = 0;
+    this.currentPower = 0;
+    this.laserOn = false;
 
     const lines = gcode.split('\n');
     
@@ -58,8 +64,8 @@ export class GCodeParser {
     const code = codeMatch[1];
     const params: Record<string, number> = {};
 
-    // Match parameters like X10 Y20 Z30, but we'll only use X and Y for 2D
-    const paramMatches = line.matchAll(/([XYZIJKF])([+-]?\d*\.?\d+)/g);
+    // Match parameters like X10 Y20 Z30 S100 F500
+    const paramMatches = line.matchAll(/([XYZIJKFS])([+-]?\d*\.?\d+)/g);
     for (const match of paramMatches) {
       params[match[1]] = parseFloat(match[2]);
     }
@@ -73,6 +79,25 @@ export class GCodeParser {
       this.currentFeedrate = command.params.F;
     }
     
+    // Actualizar potencia si está presente
+    if ('S' in command.params) {
+      this.currentPower = command.params.S;
+    }
+    
+    // Procesar comandos de control del láser
+    if (command.code === 'M3' || command.code === 'M4') {
+      // Encender láser (M3 = constante, M4 = dinámico/PWM)
+      this.laserOn = true;
+    } else if (command.code === 'M5') {
+      // Apagar láser
+      this.laserOn = false;
+      this.currentPower = 0;
+    } else if (command.code === 'M8') {
+      // Activar refrigeración/aire - no afecta directamente al parseo
+    } else if (command.code === 'M9') {
+      // Desactivar refrigeración/aire - no afecta directamente al parseo
+    }
+    
     // Handle different G codes
     if (command.code === 'G0' || command.code === 'G1') {
       const newPosition = { ...this.currentPosition };
@@ -82,13 +107,18 @@ export class GCodeParser {
       if ('Y' in command.params) newPosition.y = command.params.Y;
 
       // Create a path from current position to new position
-      this.paths.push({
-        start: { ...this.currentPosition },
-        end: { ...newPosition },
-        isRapid: command.code === 'G0',
-        feedrate: this.currentFeedrate, // Almacenar la velocidad actual
-        command: command // Almacenar el comando original
-      });
+      // Solo crear path si hay un cambio de posición
+      if (newPosition.x !== this.currentPosition.x || newPosition.y !== this.currentPosition.y) {
+        this.paths.push({
+          start: { ...this.currentPosition },
+          end: { ...newPosition },
+          isRapid: command.code === 'G0',
+          feedrate: this.currentFeedrate,
+          power: this.currentPower,
+          laserOn: this.laserOn,
+          command: command // Almacenar el comando original
+        });
+      }
 
       // Update current position
       this.currentPosition = newPosition;
@@ -102,6 +132,16 @@ export class GCodeParser {
 
   getCommands(): GCodeCommand[] {
     return this.commands;
+  }
+
+  // Convierte un valor S (0-255) a porcentaje (0-100%)
+  static convertPowerToPercentage(sPower: number): number {
+    return sPower / 10;
+  }
+
+  // Convierte un porcentaje (0-100%) a valor S (0-255)
+  static convertPercentageToPower(percentage: number): number {
+    return Math.round((percentage / 100) * 255);
   }
 
   getBoundingBox(): { min: Point2D, max: Point2D } {

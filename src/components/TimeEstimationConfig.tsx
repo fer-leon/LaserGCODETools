@@ -26,7 +26,7 @@ const TimeEstimationConfig: React.FC<TimeEstimationConfigProps> = ({
       
       <div className="mb-2">
         <label className="flex flex-col mb-1">
-          <span className="text-xs text-gray-700 mb-1">Maximum Acceleration (mm/s²):</span>
+          <span className="text-xs text-gray-700 mb-1">Maximum Acceleration (units/s²):</span>
           <input
             type="number"
             min="0.1"
@@ -37,7 +37,7 @@ const TimeEstimationConfig: React.FC<TimeEstimationConfigProps> = ({
           />
         </label>
         <p className="text-xs text-gray-500 mt-1">
-          Typical values: 500-2000 mm/s²
+          Typical values: 500-2000 units/s²
         </p>
       </div>
     </div>

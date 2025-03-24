@@ -629,6 +629,18 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
 
   // Format coordinates for display
   const formatCoordinate = (value: number) => value.toFixed(2);
+  
+  // Format power for display - usar solo esta versión actualizada
+  const formatPower = (path: GCodePath) => {
+    // Si el láser está apagado o no hay información de potencia
+    if (!path.laserOn || path.power === undefined || path.power === 0) {
+      return 'Off';
+    }
+    
+    // Convertir el valor S (0-255) a porcentaje (0-100%)
+    const powerPercent = GCodeParser.convertPowerToPercentage(path.power).toFixed(1);
+    return `${powerPercent}%`;
+  };
 
   return (
     <div className="w-full h-full relative">
@@ -669,9 +681,13 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
               )
             )} units
           </div>
-          {/* Información de velocidad mejorada mostrando original vs corregida */}
+          {/* Información de velocidad */}
           <div>
             <span className="font-semibold">Speed:</span> {formatFeedrate(highlightedLine.path, highlightedLine.index)}
+          </div>
+          {/* Información de potencia del láser */}
+          <div>
+            <span className="font-semibold">Power:</span> {formatPower(highlightedLine.path)}
           </div>
           {/* Información adicional para el modo corrección */}
           {colorMode === 'correction' && correctionFactors && (
