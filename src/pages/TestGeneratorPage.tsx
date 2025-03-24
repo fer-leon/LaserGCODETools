@@ -6,43 +6,164 @@ import TestPatternGenerator, { TestParameterType } from '../utils/TestPatternGen
 // Tipo para la leyenda de color
 type ColorLegendType = 'power' | 'speed' | 'correction';
 
+// Interface for settings to be saved in localStorage
+interface TestGeneratorSettings {
+  // X Axis
+  xParameterType: TestParameterType;
+  xMinValue: number;
+  xMaxValue: number;
+  xSteps: number;
+  
+  // Y Axis
+  yParameterType: TestParameterType;
+  yMinValue: number;
+  yMaxValue: number;
+  ySteps: number;
+  
+  // Fixed values
+  fixedPower: number;
+  fixedSpeed: number;
+  
+  // Geometry
+  squareSize: number;
+  spacing: number;
+  margin: number;
+  
+  // Color legend
+  colorLegend: ColorLegendType;
+  
+  // Correction axis
+  correctionAxis: 'X' | 'Y';
+  
+  // File name
+  fileName: string;
+}
+
+// Storage key for localStorage
+const STORAGE_KEY = 'laserGcodeTools_testGeneratorSettings';
+
 const TestGeneratorPage: React.FC = () => {
-  // X Axis Parameters
+  // Initialize state with default values
+  // We'll load from localStorage in a useEffect
   const [xParameterType, setXParameterType] = useState<TestParameterType>('speed');
   const [xMinValue, setXMinValue] = useState<number>(100);
   const [xMaxValue, setXMaxValue] = useState<number>(3000);
   const [xSteps, setXSteps] = useState<number>(5);
   
-  // Y Axis Parameters
   const [yParameterType, setYParameterType] = useState<TestParameterType>('power');
   const [yMinValue, setYMinValue] = useState<number>(5);
   const [yMaxValue, setYMaxValue] = useState<number>(100);
   const [ySteps, setYSteps] = useState<number>(5);
   
-  // Fixed values for non-axis parameters
   const [fixedPower, setFixedPower] = useState<number>(80);
   const [fixedSpeed, setFixedSpeed] = useState<number>(1000);
   
-  // Geometry
   const [squareSize, setSquareSize] = useState<number>(10);
   const [spacing, setSpacing] = useState<number>(5);
   const [margin, setMargin] = useState<number>(10);
   
-  // GCODE generated
   const [generatedGCode, setGeneratedGCode] = useState<string>('');
   const [fileName, setFileName] = useState<string>('laser_test_pattern.gcode');
   
-  // Color legend configuration
   const [colorLegend, setColorLegend] = useState<ColorLegendType>('power');
   
-  // Eje al que se aplica la corrección
   const [correctionAxis, setCorrectionAxis] = useState<'X' | 'Y'>('X');
   
-  // Save message
   const [saveMessage, setSaveMessage] = useState<{
     type: 'success' | 'error' | 'info';
     text: string;
   } | null>(null);
+  
+  // Set isSettingsLoaded to track if we've loaded settings
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState<boolean>(false);
+
+  // Function to save settings to localStorage
+  const saveSettingsToStorage = () => {
+    // Only save if we've already loaded settings (to prevent overwriting with defaults)
+    if (!isSettingsLoaded) {
+      return;
+    }
+    
+    const settings: TestGeneratorSettings = {
+      xParameterType,
+      xMinValue,
+      xMaxValue,
+      xSteps,
+      yParameterType,
+      yMinValue,
+      yMaxValue, 
+      ySteps,
+      fixedPower,
+      fixedSpeed,
+      squareSize,
+      spacing,
+      margin,
+      colorLegend,
+      correctionAxis,
+      fileName
+    };
+    
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+      console.log('Settings saved to localStorage');
+    } catch (error) {
+      console.error('Error saving settings to localStorage:', error);
+    }
+  };
+  
+  // Load settings from localStorage when component mounts
+  useEffect(() => {
+    console.log('Loading settings from localStorage');
+    try {
+      const savedSettings = localStorage.getItem(STORAGE_KEY);
+      if (savedSettings) {
+        const settings: TestGeneratorSettings = JSON.parse(savedSettings);
+        console.log('Found saved settings:', settings);
+        
+        // Apply saved settings
+        setXParameterType(settings.xParameterType);
+        setXMinValue(settings.xMinValue);
+        setXMaxValue(settings.xMaxValue);
+        setXSteps(settings.xSteps);
+        
+        setYParameterType(settings.yParameterType);
+        setYMinValue(settings.yMinValue);
+        setYMaxValue(settings.yMaxValue);
+        setYSteps(settings.ySteps);
+        
+        setFixedPower(settings.fixedPower);
+        setFixedSpeed(settings.fixedSpeed);
+        
+        setSquareSize(settings.squareSize);
+        setSpacing(settings.spacing);
+        setMargin(settings.margin);
+        
+        setColorLegend(settings.colorLegend);
+        setCorrectionAxis(settings.correctionAxis);
+        setFileName(settings.fileName);
+      } else {
+        console.log('No saved settings found, using defaults');
+      }
+      
+      // Mark settings as loaded
+      setIsSettingsLoaded(true);
+    } catch (error) {
+      console.error('Error loading settings from localStorage:', error);
+      setIsSettingsLoaded(true); // Still mark as loaded to allow saving
+    }
+  }, []);
+  
+  // Save settings to localStorage whenever they change
+  useEffect(() => {
+    saveSettingsToStorage();
+  }, [
+    xParameterType, xMinValue, xMaxValue, xSteps,
+    yParameterType, yMinValue, yMaxValue, ySteps,
+    fixedPower, fixedSpeed,
+    squareSize, spacing, margin,
+    colorLegend, correctionAxis, fileName,
+    isSettingsLoaded // Only save after settings have been loaded
+  ]);
 
   // Handle parameter type change with validation
   const handleXParameterTypeChange = (newType: TestParameterType) => {
@@ -210,7 +331,7 @@ const TestGeneratorPage: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden p-2">
         <div className="flex items-center justify-between mb-1">
-          <h1 className="text-xl font-bold text-blue-700">Laser Test Pattern Generator</h1>
+          <h1 className="text-xl font-bold text-blue-700">Test Pattern Generator</h1>
           
           {/* Display save message if present */}
           {saveMessage && (

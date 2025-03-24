@@ -160,7 +160,7 @@ const GCodePage: React.FC = () => {
   return (
     <div className="flex flex-col h-full overflow-hidden p-2">
       <div className="flex items-center justify-between mb-1">
-        <h1 className="text-xl font-bold text-blue-700">Laser Axis Correction Tool</h1>
+        <h1 className="text-xl font-bold text-blue-700">Axis Correction Tool</h1>
         {fileName && (
           <h2 className="text-sm font-semibold bg-gray-100 px-2 py-1 rounded truncate max-w-xs">
             File: {fileName}

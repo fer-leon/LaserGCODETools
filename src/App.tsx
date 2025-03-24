@@ -37,8 +37,8 @@ export default function App() {
 
       {/* Page Content */}
       <div className="flex-1 overflow-hidden min-h-0">
-        {activeTab === 'gcode' && <GCodePage />}
-        {activeTab === 'test-generator' && <TestGeneratorPage />}
+        {activeTab === 'gcode' && <GCodePage key="gcode-page" />}
+        {activeTab === 'test-generator' && <TestGeneratorPage key="test-generator-page" />}
       </div>
     </div>
   );

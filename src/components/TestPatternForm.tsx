@@ -150,7 +150,7 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-3 text-sm overflow-y-auto">
-      <h2 className="font-semibold text-gray-800 mb-2">Test Pattern Configuration</h2>
+      <h2 className="font-semibold text-gray-800 mb-2">Configuration</h2>
       
       {/* X Axis Settings */}
       <div className="mb-4">
