@@ -241,21 +241,13 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         minLabel = `${Math.round(range.min)}%`;
         maxLabel = `${Math.round(range.max)}%`;
       } else if (patternLegendType === 'speed') {
-        // Verde (min) a Amarillo (max) para velocidad
-        gradient.addColorStop(0, 'rgb(0, 128, 0)'); // Verde - velocidad mínima
-        gradient.addColorStop(1, 'rgb(255, 255, 0)'); // Amarillo - velocidad máxima
+        // Azul (min) a Cian (max) para velocidad (cambiado de Verde-Amarillo)
+        gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - velocidad mínima
+        gradient.addColorStop(1, 'rgb(255, 0, 255)'); // Cian - velocidad máxima
         legendTitle = 'Speed (units/min)';
         const range = getEffectiveRange('speed');
         minLabel = `${Math.round(range.min)}`;
         maxLabel = `${Math.round(range.max)}`;
-      } else if (patternLegendType === 'correction') {
-        // Púrpura (min) a Cian (max) para corrección
-        gradient.addColorStop(0, 'rgb(128, 0, 128)'); // Púrpura - corrección mínima
-        gradient.addColorStop(1, 'rgb(0, 255, 255)'); // Cian - corrección máxima
-        legendTitle = 'Correction factor';
-        const range = getEffectiveRange('correction');
-        minLabel = range.min.toFixed(2);
-        maxLabel = range.max.toFixed(2);
       }
     }
     
@@ -844,10 +836,10 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           paramValue = (speedValue - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
-          // Verde a Amarillo
+          // Azul a Violeta
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
-          const b = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
           color = `rgb(${r}, ${g}, ${b})`;
         }
       } else if (patternLegendType === 'correction') {
@@ -897,10 +889,10 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
-          // Verde a Amarillo
+          // Azul a Cian (cambiado de Verde-Amarillo)
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
-          const b = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
           color = `rgb(${r}, ${g}, ${b})`;
         }
       }
