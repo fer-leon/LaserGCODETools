@@ -100,9 +100,12 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       // Usar el mayor entre la escala fija y la escala de ajuste
       const newScale = Math.max(fixedScale, fitScale * 0.9);
       
-      // CORREGIDO: Para ser coherente con la transformación al renderizar
+      // CORRECCIÓN para centrar correctamente en X e Y
       const newOffsetX = canvas.width / 2 - centroid.x * newScale;
-      const newOffsetY = canvas.height / 2 + centroid.y * newScale - canvas.height;
+      
+      // Para Y, tenemos que recordar que en canvas el eje Y está invertido (aumenta hacia abajo)
+      // mientras que en GCODE, Y aumenta hacia arriba. Por eso hacemos canvas.height - (...)
+      const newOffsetY = canvas.height / 2 - centroid.y * newScale;
       
       // Store initial view settings
       initialViewRef.current = {
