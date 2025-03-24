@@ -267,6 +267,7 @@ const TestGeneratorPage: React.FC = () => {
         fixedSpeed: needsFixedSpeed() ? fixedSpeed : undefined,
         squareSize,
         spacing,
+        margin, // Añadido: incluir el margin en la configuración
         correctionAxis // Pasar el eje de corrección al generador
       };
       

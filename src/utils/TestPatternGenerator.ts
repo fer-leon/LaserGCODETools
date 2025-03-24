@@ -17,6 +17,7 @@ export interface TestPatternConfig {
   fixedSpeed?: number; // Fixed speed if not on any axis
   squareSize: number;
   spacing: number;
+  margin: number; // Usar este valor para el margen
   correctionAxis?: 'X' | 'Y'; // Eje al que se aplica la corrección
 }
 
@@ -32,6 +33,7 @@ export class TestPatternGenerator {
       fixedSpeed,
       squareSize,
       spacing,
+      margin, // Usar este valor para el margen
       correctionAxis = 'X' // Valor por defecto: X
     } = config;
 
@@ -81,27 +83,9 @@ export class TestPatternGenerator {
     const totalWidth = xAxis.steps * (squareSize + spacing) - spacing;
     const totalHeight = yAxis.steps * (squareSize + spacing) - spacing;
     
-    // Add outer rectangle to mark test area
-    gcode += `; Outer rectangle to mark the test area\n`;
-    gcode += `G0 X-${spacing} Y-${spacing} ; Move to start position\n`;
-    
-    // Use max power for drawing the border
-    const borderPower = (xAxis.parameterType === 'power' ? xAxis.maxValue : 
-                         (yAxis.parameterType === 'power' ? yAxis.maxValue : 
-                         (fixedPower || 80)));
-    
-    // Use max speed for drawing the border or a reasonable value
-    const borderSpeed = (xAxis.parameterType === 'speed' ? xAxis.maxValue : 
-                         (yAxis.parameterType === 'speed' ? yAxis.maxValue : 
-                         (fixedSpeed || 3000)));
-    
-    // Convertir porcentaje (0-100) a valor S (0-1000)
-    gcode += `M3 S${Math.round(borderPower * 10)} ; Set border power\n`;
-    gcode += `G1 X${totalWidth + spacing} Y-${spacing} F${borderSpeed} ; Draw bottom edge\n`;
-    gcode += `G1 X${totalWidth + spacing} Y${totalHeight + spacing} ; Draw right edge\n`;
-    gcode += `G1 X-${spacing} Y${totalHeight + spacing} ; Draw top edge\n`;
-    gcode += `G1 X-${spacing} Y-${spacing} ; Draw left edge\n`;
-    gcode += `M5 ; Laser off\n\n`;
+    // Calcular la posición inicial considerando el margen
+    const startX = margin; // Usar el margen como punto de inicio en X
+    const startY = margin; // Usar el margen como punto de inicio en Y
 
     // Create squares for each combination of values
     for (let y = 0; y < yAxis.steps; y++) {
@@ -128,8 +112,8 @@ export class TestPatternGenerator {
         else if (yAxis.parameterType === 'correction') correction = yValue;
         
         // Calculate position of this square
-        const xPos = x * (squareSize + spacing);
-        const yPos = y * (squareSize + spacing);
+        const xPos = startX + x * (squareSize + spacing);
+        const yPos = startY + y * (squareSize + spacing);
         
         // Convert power from percentage to S value (0-1000)
         const normalizedPower = Math.round(power * 10);
