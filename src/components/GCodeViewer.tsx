@@ -241,9 +241,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         minLabel = `${Math.round(range.min)}%`;
         maxLabel = `${Math.round(range.max)}%`;
       } else if (patternLegendType === 'speed') {
-        // Azul (min) a Cian (max) para velocidad (cambiado de Verde-Amarillo)
+        // Azul (min) a Violeta (max) para velocidad
         gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - velocidad mínima
-        gradient.addColorStop(1, 'rgb(255, 0, 255)'); // Cian - velocidad máxima
+        gradient.addColorStop(1, 'rgb(255, 0, 255)'); // Violeta - velocidad máxima
         legendTitle = 'Speed (units/min)';
         const range = getEffectiveRange('speed');
         minLabel = `${Math.round(range.min)}`;
@@ -842,29 +842,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
           color = `rgb(${r}, ${g}, ${b})`;
         }
-      } else if (patternLegendType === 'correction') {
-        // Intentar encontrar valor de corrección en el comentario
-        const correctionXMatch = comment.match(correctionXRegex);
-        const correctionYMatch = comment.match(correctionYRegex);
-        
-        let corrMatch = correctionXMatch || correctionYMatch;
-        
-        if (corrMatch) {
-          valueFound = true;
-          const corrValue = parseFloat(corrMatch[1]);
-          const corrRange = getEffectiveRange('correction');
-          
-          // Normalizar basado en el rango configurado
-          paramValue = (corrValue - corrRange.min) / (corrRange.max - corrRange.min);
-          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
-          
-          // Púrpura a Cian
-          const r = Math.floor(128 * (1 - paramValue) + 0 * paramValue);
-          const g = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const b = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
-          color = `rgb(${r}, ${g}, ${b})`;
-        }
-      }
+      } 
       
       // Si no se encontró ningún valor en los comentarios, intentar usar los valores del path
       if (!valueFound) {
@@ -889,7 +867,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
-          // Azul a Cian (cambiado de Verde-Amarillo)
+          // Azul a Violeta
           const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
           const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
           const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);

@@ -337,6 +337,38 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
           </div>
         </div>
       </div>
+
+        {/* Correction Axis Selector - only visible when correction is enabled */}
+        {isCorrectionEnabled && (
+        <div className="mb-4">
+          <h3 className="font-medium text-gray-700 text-xs mb-1">Apply Correction to Axis</h3>
+          <div className="flex space-x-2">
+            <button
+              className={`py-1 px-3 text-xs rounded-md ${
+                correctionAxis === 'X' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => onCorrectionAxisChange('X')}
+            >
+              X Axis
+            </button>
+            <button
+              className={`py-1 px-3 text-xs rounded-md ${
+                correctionAxis === 'Y' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => onCorrectionAxisChange('Y')}
+            >
+              Y Axis
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-gray-600">
+            Choose which axis will have lower efficiency in laser power.
+          </div>
+        </div>
+      )}
       
       {/* Fixed Values */}
       <div className="mb-4">
@@ -409,38 +441,6 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
           Select which parameter will be visualized with color in the preview.
         </div>
       </div>
-      
-      {/* Correction Axis Selector - only visible when correction is enabled */}
-      {isCorrectionEnabled && (
-        <div className="mb-4">
-          <h3 className="font-medium text-gray-700 text-xs mb-1">Apply Correction to Axis</h3>
-          <div className="flex space-x-2">
-            <button
-              className={`py-1 px-3 text-xs rounded-md ${
-                correctionAxis === 'X' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-              onClick={() => onCorrectionAxisChange('X')}
-            >
-              X Axis
-            </button>
-            <button
-              className={`py-1 px-3 text-xs rounded-md ${
-                correctionAxis === 'Y' 
-                  ? 'bg-blue-500 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-              onClick={() => onCorrectionAxisChange('Y')}
-            >
-              Y Axis
-            </button>
-          </div>
-          <div className="mt-1 text-xs text-gray-600">
-            Choose which axis will have lower efficiency in laser power.
-          </div>
-        </div>
-      )}
       
       {/* Geometry Settings */}
       <div className="mb-4">
