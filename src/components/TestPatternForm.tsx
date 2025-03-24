@@ -188,27 +188,6 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
         </div>
       </div>
       
-      {/* Save Options */}
-      <div className="mt-3">
-        <label className="block text-xs text-gray-600 mb-1">
-          File Name:
-        </label>
-        <div className="flex">
-          <input 
-            type="text" 
-            value={fileName}
-            onChange={(e) => onFileNameChange(e.target.value)}
-            className="flex-grow p-1 text-xs border rounded-l"
-          />
-          <button 
-            onClick={onSave}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 text-xs rounded-r"
-          >
-            Save
-          </button>
-        </div>
-      </div>
-      
       {/* Help text */}
       <div className="mt-3 bg-blue-50 p-2 rounded text-xs text-blue-700">
         This pattern creates squares with increasing speed (X axis) and power (Y axis).

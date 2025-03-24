@@ -17,6 +17,12 @@ const TestGeneratorPage: React.FC = () => {
   // GCODE generado
   const [generatedGCode, setGeneratedGCode] = useState<string>('');
   const [fileName, setFileName] = useState<string>('laser_test_pattern.gcode');
+  
+  // New state for save message (reutilizado de GCodePage)
+  const [saveMessage, setSaveMessage] = useState<{
+    type: 'success' | 'error' | 'info';
+    text: string;
+  } | null>(null);
 
   // Generar GCODE cuando cambien los parámetros
   useEffect(() => {
@@ -109,27 +115,44 @@ const TestGeneratorPage: React.FC = () => {
     setGeneratedGCode(gcode);
   };
 
-  // Función para descargar el archivo GCODE
+  // Función para descargar el archivo GCODE (reemplazada con la lógica de GCodePage)
   const downloadGCode = async () => {
     try {
       // Si estamos en el contexto de Electron, usar la API de Electron
       const electronAPI = (window as any).electronAPI;
-      if (electronAPI) {
-        await electronAPI.saveFile(fileName, generatedGCode);
+      if (!electronAPI) {
+        setSaveMessage({
+          type: 'error',
+          text: 'Error: Electron API not available'
+        });
+        return;
+      }
+
+      // Call the save file method - FIX HERE: switch the parameter order
+      const result = await electronAPI.saveFile(generatedGCode, fileName);
+      
+      if (result.success) {
+        setSaveMessage({
+          type: 'success',
+          text: `Test pattern saved successfully`
+        });
+        
+        // Clear the message after 3 seconds
+        setTimeout(() => {
+          setSaveMessage(null);
+        }, 3000);
       } else {
-        // Fallback para navegador web normal
-        const blob = new Blob([generatedGCode], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setSaveMessage({
+          type: 'error',
+          text: `Error saving: ${result.error}`
+        });
       }
     } catch (error) {
       console.error('Error saving file:', error);
+      setSaveMessage({
+        type: 'error',
+        text: 'Unexpected error saving file'
+      });
     }
   };
 
@@ -137,6 +160,19 @@ const TestGeneratorPage: React.FC = () => {
     <div className="flex flex-col h-full overflow-hidden p-2">
         <div className="flex items-center justify-between mb-1">
           <h1 className="text-xl font-bold text-blue-700">Laser Test Pattern Generator</h1>
+          
+          {/* Display save message if present - reutilizado de GCodePage */}
+          {saveMessage && (
+            <div 
+              className={`p-2 text-xs rounded text-center
+                ${saveMessage.type === 'success' ? 'bg-green-100 text-green-800' : ''}
+                ${saveMessage.type === 'error' ? 'bg-red-100 text-red-800' : ''}
+                ${saveMessage.type === 'info' ? 'bg-blue-100 text-blue-800' : ''}
+              `}
+            >
+              {saveMessage.text}
+            </div>
+          )}
         </div>
 
       <div className="flex-1 min-h-0 grid grid-cols-4 gap-3">
@@ -165,6 +201,21 @@ const TestGeneratorPage: React.FC = () => {
             onFileNameChange={setFileName}
             onSave={downloadGCode}
           />
+          
+          {/* Button to save - reutilizado de GCodePage pero con texto diferente */}
+          {generatedGCode && (
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <button
+                onClick={downloadGCode}
+                className="w-full bg-green-500 hover:bg-green-600 text-white py-2 px-4 rounded flex items-center justify-center space-x-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                </svg>
+                <span className="text-sm">Save Test Pattern</span>
+              </button>
+            </div>
+          )}
         </div>
         
         {/* Panel derecho - Visualizador */}
