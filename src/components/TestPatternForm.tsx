@@ -1,6 +1,9 @@
 import React from 'react';
 import { TestParameterType } from '../utils/TestPatternGenerator';
 
+// Tipo para la leyenda de color
+type ColorLegendType = 'power' | 'speed' | 'correction';
+
 interface TestPatternFormProps {
   // X Axis
   xParameterType: TestParameterType;
@@ -42,6 +45,15 @@ interface TestPatternFormProps {
   
   // Actions
   onSave: () => void;
+
+  // Color legend
+  colorLegend: ColorLegendType;
+  onColorLegendChange: (type: ColorLegendType) => void;
+  
+  // Correction Axis
+  correctionAxis: 'X' | 'Y';
+  onCorrectionAxisChange: (axis: 'X' | 'Y') => void;
+  isCorrectionEnabled: boolean;
 }
 
 const TestPatternForm: React.FC<TestPatternFormProps> = ({
@@ -84,7 +96,16 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
   onFileNameChange,
   
   // Actions
-  onSave
+  onSave,
+
+  // Color legend
+  colorLegend,
+  onColorLegendChange,
+  
+  // Correction Axis
+  correctionAxis,
+  onCorrectionAxisChange,
+  isCorrectionEnabled
 }) => {
   // Helper function to get label and limits for each parameter type
   const getParameterSettings = (type: TestParameterType) => {
@@ -319,6 +340,7 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
       
       {/* Fixed Values */}
       <div className="mb-4">
+        <h3 className="font-medium text-gray-700 text-xs mb-1">Fixed Values</h3>
         <div className="grid grid-cols-2 gap-2">
           {needsFixedPower && (
             <div>
@@ -356,6 +378,78 @@ const TestPatternForm: React.FC<TestPatternFormProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Color Legend Selection */}
+      <div className="mb-4">
+        <h3 className="font-medium text-gray-700 text-xs mb-1">Color Legend</h3>
+        <div className="flex space-x-2">
+          <button
+            className={`py-1 px-2 text-xs rounded ${
+              colorLegend === 'power' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+            onClick={() => onColorLegendChange('power')}
+          >
+            Power
+          </button>
+          <button
+            className={`py-1 px-2 text-xs rounded ${
+              colorLegend === 'speed' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+            onClick={() => onColorLegendChange('speed')}
+          >
+            Speed
+          </button>
+          <button
+            className={`py-1 px-2 text-xs rounded ${
+              colorLegend === 'correction' 
+                ? 'bg-blue-500 text-white' 
+                : 'bg-gray-200 hover:bg-gray-300'
+            }`}
+            onClick={() => onColorLegendChange('correction')}
+          >
+            Correction
+          </button>
+        </div>
+        <div className="mt-1 text-xs text-gray-600">
+          Select which parameter will be visualized with color in the preview.
+        </div>
+      </div>
+      
+      {/* Correction Axis Selector - only visible when correction is enabled */}
+      {isCorrectionEnabled && (
+        <div className="mb-4">
+          <h3 className="font-medium text-gray-700 text-xs mb-1">Apply Correction to Axis</h3>
+          <div className="flex space-x-2">
+            <button
+              className={`py-1 px-3 text-xs rounded-md ${
+                correctionAxis === 'X' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => onCorrectionAxisChange('X')}
+            >
+              X Axis
+            </button>
+            <button
+              className={`py-1 px-3 text-xs rounded-md ${
+                correctionAxis === 'Y' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+              onClick={() => onCorrectionAxisChange('Y')}
+            >
+              Y Axis
+            </button>
+          </div>
+          <div className="mt-1 text-xs text-gray-600">
+            Choose which axis will have lower efficiency in laser power.
+          </div>
+        </div>
+      )}
       
       {/* Geometry Settings */}
       <div className="mb-4">

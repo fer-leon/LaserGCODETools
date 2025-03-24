@@ -13,7 +13,8 @@ interface GCodeViewerProps {
   customCentroid?: { x: number, y: number } | null;
   
   // Opciones de visualización
-  colorMode?: 'default' | 'correction';
+  colorMode?: 'default' | 'correction' | 'pattern';
+  patternLegendType?: 'power' | 'speed' | 'correction';
   showOriginal?: boolean;
   title?: string;
 }
@@ -26,6 +27,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
   customBbox,
   customCentroid,
   colorMode = 'default',
+  patternLegendType = 'power',
   showOriginal = false,
   title
 }) => {
@@ -118,17 +120,42 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     }
   }, [gcodeContent, customPaths, customBbox, customCentroid]);
 
-  // Función para dibujar la leyenda de colores para la corrección
-  const drawCorrectionLegend = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
-    if (colorMode !== 'correction') return;
+  // Función para dibujar la leyenda de colores para la corrección o patrón
+  const drawLegend = (ctx: CanvasRenderingContext2D, x: number, y: number) => {
+    if (colorMode !== 'correction' && colorMode !== 'pattern') return;
     
     const width = 100;
     const height = 15;
     
-    // Modificado el gradiente: Azul a Rojo
+    // Crear el gradiente según el modo
     const gradient = ctx.createLinearGradient(x, y, x + width, y);
-    gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - sin corrección
-    gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - máxima corrección
+    
+    // Configurar gradiente y texto según el modo y tipo
+    let legendTitle = '';
+    
+    if (colorMode === 'correction') {
+      // Azul a Rojo para corrección
+      gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - sin corrección
+      gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - máxima corrección
+      legendTitle = 'Speed reduction';
+    } else if (colorMode === 'pattern') {
+      if (patternLegendType === 'power') {
+        // Azul (min) a Rojo (max) para potencia
+        gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - potencia mínima
+        gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - potencia máxima
+        legendTitle = 'Power (%)';
+      } else if (patternLegendType === 'speed') {
+        // Verde (min) a Amarillo (max) para velocidad
+        gradient.addColorStop(0, 'rgb(0, 128, 0)'); // Verde - velocidad mínima
+        gradient.addColorStop(1, 'rgb(255, 255, 0)'); // Amarillo - velocidad máxima
+        legendTitle = 'Speed (units/min)';
+      } else if (patternLegendType === 'correction') {
+        // Púrpura (min) a Cian (max) para corrección
+        gradient.addColorStop(0, 'rgb(128, 0, 128)'); // Púrpura - corrección mínima
+        gradient.addColorStop(1, 'rgb(0, 255, 255)'); // Cian - corrección máxima
+        legendTitle = 'Correction factor';
+      }
+    }
     
     // Draw gradient rectangle
     ctx.fillStyle = gradient;
@@ -143,9 +170,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     ctx.fillStyle = '#000000';
     ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('0%', x, y + height + 12);
-    ctx.fillText('100%', x + width, y + height + 12);
-    ctx.fillText('Speed reduction', x + width/2, y + height + 24);
+    ctx.fillText('Min', x, y + height + 12);
+    ctx.fillText('Max', x + width, y + height + 12);
+    ctx.fillText(legendTitle, x + width/2, y + height + 24);
   };
 
   // Función para mostrar la velocidad correctamente, considerando correcciones
@@ -327,8 +354,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     
     // Si estamos en modo corrección y tenemos factores, dibujamos la leyenda
     if (colorMode === 'correction' && correctionFactors) {
-      // Cambio: Posición Y aumentada de 20 a 50 para bajar la leyenda
-      drawCorrectionLegend(ctx, canvas.width - 120, 50);
+      drawLegend(ctx, canvas.width - 120, 50);
+    } else if (colorMode === 'pattern') {
+      drawLegend(ctx, canvas.width - 120, 50);
     }
     
     // Dibujar los paths originales en gris si showOriginal es true y tenemos originalPaths
@@ -368,60 +396,31 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       
       // Determinar el estilo según el modo de color
       const isHighlighted = highlightedLine?.index === index;
+      const { color, lineWidth, isDashed } = getPathColor(path, index);
       
-      if (colorMode === 'correction' && correctionFactors) {
-        // Coloreado basado en el factor de corrección
-        const correctionFactor = correctionFactors[index] || 0;
-        
-        if (path.isRapid) {
-          // Movimientos rápidos ahora en verde (con resaltado si es necesario)
-          if (isHighlighted) {
-            ctx.strokeStyle = '#66CC66'; // Verde más brillante para resaltado
-            ctx.lineWidth = 3.0;
-          } else {
-            ctx.strokeStyle = '#2ECC71'; // Verde normal
-            ctx.lineWidth = 2.0;
-          }
-          ctx.setLineDash([5, 3]);
-        } else {
-          // Interpolación de color: azul (sin corrección) a rojo (máxima corrección)
-          // Pero si está resaltado, usar un tono más brillante
-          if (isHighlighted) {
-            // Versión más brillante del color interpolado para resaltado
-            const r = Math.floor(80 + (0 * (1 - correctionFactor) + 255 * correctionFactor) * 0.8);
-            const g = Math.floor(80 + (0 * (1 - correctionFactor) + 0 * correctionFactor) * 0.8);
-            const b = Math.floor(80 + (255 * (1 - correctionFactor) + 0 * correctionFactor) * 0.8);
-            ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
-            ctx.lineWidth = 3.0;
-          } else {
-            // Color normal
-            const r = Math.floor(0 * (1 - correctionFactor) + 255 * correctionFactor);
-            const g = Math.floor(0 * (1 - correctionFactor) + 0 * correctionFactor);
-            const b = Math.floor(255 * (1 - correctionFactor) + 0 * correctionFactor);
-            ctx.strokeStyle = `rgb(${r}, ${g}, ${b})`;
-            ctx.lineWidth = 2.0;
-          }
-          ctx.setLineDash([]);
-        }
+      if (isHighlighted) {
+        // Highlighted path style - más brillante
+        ctx.strokeStyle = path.isRapid ? '#66CC66' : adjustColorBrightness(color, 40);
+        ctx.lineWidth = lineWidth + 1.5;
       } else {
-        // Coloración normal
-        if (isHighlighted) {
-          // Highlighted path style - también usando verde para movimientos rápidos
-          ctx.strokeStyle = path.isRapid ? '#66CC66' : '#6666ff'; // Verde brillante o azul brillante
-          ctx.lineWidth = 3.0; // Thicker line
-        } else {
-          // Normal path style - Verde para rápidos, azul para corte
-          ctx.strokeStyle = path.isRapid ? '#2ECC71' : '#0000ff';
-          ctx.lineWidth = 1.5;
-        }
-        
-        ctx.setLineDash(path.isRapid ? [5, 3] : []);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
       }
       
+      ctx.setLineDash(isDashed ? [5, 3] : []);
       ctx.stroke();
       ctx.setLineDash([]);
     });
-  }, [scale, offset, highlightedLine, colorMode, correctionFactors, showOriginalToggle, originalPaths]);
+  }, [
+    scale, 
+    offset, 
+    highlightedLine, 
+    colorMode, 
+    correctionFactors, 
+    showOriginalToggle, 
+    originalPaths,
+    patternLegendType  // Agregar patternLegendType como dependencia
+  ]);
 
   // Re-render when scale or offset change
   useEffect(() => {
@@ -596,6 +595,27 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     setOffset(initialViewRef.current.offset);
   };
 
+  // Función auxiliar para ajustar el brillo de un color
+  const adjustColorBrightness = (color: string, percent: number) => {
+    // Procesar colores en formato rgb(r,g,b)
+    const rgbMatch = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+    if (rgbMatch) {
+      const r = parseInt(rgbMatch[1]);
+      const g = parseInt(rgbMatch[2]);
+      const b = parseInt(rgbMatch[3]);
+      
+      // Ajustar el brillo
+      const newR = Math.min(255, r + percent);
+      const newG = Math.min(255, g + percent);
+      const newB = Math.min(255, b + percent);
+      
+      return `rgb(${newR}, ${newG}, ${newB})`;
+    }
+    
+    // Para colores hexadecimales u otros formatos, retornar el original
+    return color;
+  };
+
   // Calculate distance from point to line segment
   const distanceToLine = (x: number, y: number, x1: number, y1: number, x2: number, y2: number): number => {
     const A = x - x1;
@@ -643,6 +663,135 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     // Convertir el valor S (0-255) a porcentaje (0-100%)
     const powerPercent = GCodeParser.convertPowerToPercentage(path.power).toFixed(1);
     return `${powerPercent}%`;
+  };
+
+  // Obtener color para un camino según el tipo de visualización
+  const getPathColor = (path: GCodePath, index: number) => {
+    // Estilo predeterminado
+    let color = path.isRapid ? '#2ECC71' : '#0000ff'; // Verde para rápidos, azul para corte
+    let lineWidth = 1.5;
+    let isDashed = path.isRapid;
+    
+    // Color según el modo
+    if (colorMode === 'correction' && correctionFactors) {
+      // Coloreado basado en corrección (azul sin corrección a rojo con máxima)
+      if (!path.isRapid) {
+        const factor = correctionFactors[index] || 0;
+        const r = Math.floor(0 * (1 - factor) + 255 * factor);
+        const g = Math.floor(0 * (1 - factor) + 0 * factor);
+        const b = Math.floor(255 * (1 - factor) + 0 * factor);
+        color = `rgb(${r}, ${g}, ${b})`;
+      }
+    } else if (colorMode === 'pattern' && !path.isRapid) {
+      // Analizar el comentario para obtener información
+      const comment = path.command?.comment || '';
+      
+      console.log("Comentario: ", comment); // DEBUG para ver los comentarios
+      
+      // Expresiones regulares más precisas
+      const powerXRegex = /Power-X=(\d+\.?\d*)%/;
+      const powerYRegex = /Power-Y=(\d+\.?\d*)%/;
+      const speedXRegex = /Speed-X=(\d+\.?\d*)/;
+      const speedYRegex = /Speed-Y=(\d+\.?\d*)/;
+      const correctionXRegex = /Correction-X=(\d+\.?\d*)/;
+      const correctionYRegex = /Correction-Y=(\d+\.?\d*)/;
+      
+      // Patrones para valores finales
+      const finalPowerRegex = /Power=(\d+)%/;
+      const finalSpeedRegex = /Speed=(\d+)/;
+      
+      let paramValue = 0;
+      let valueFound = false;
+      
+      if (patternLegendType === 'power') {
+        // Intentar encontrar valor de potencia en el comentario
+        const powerXMatch = comment.match(powerXRegex);
+        const powerYMatch = comment.match(powerYRegex);
+        const finalPowerMatch = comment.match(finalPowerRegex);
+        
+        let powerMatch = powerXMatch || powerYMatch || finalPowerMatch;
+        
+        if (powerMatch) {
+          valueFound = true;
+          paramValue = parseFloat(powerMatch[1]) / 100; // Normalizar a 0-1
+          
+          // Azul a Rojo
+          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
+          color = `rgb(${r}, ${g}, ${b})`;
+        }
+      } else if (patternLegendType === 'speed') {
+        // Intentar encontrar valor de velocidad en el comentario
+        const speedXMatch = comment.match(speedXRegex);
+        const speedYMatch = comment.match(speedYRegex);
+        const finalSpeedMatch = comment.match(finalSpeedRegex);
+        
+        let speedMatch = speedXMatch || speedYMatch || finalSpeedMatch;
+        
+        if (speedMatch) {
+          valueFound = true;
+          const speedValue = parseFloat(speedMatch[1]);
+          
+          // Ajustar el rango para normalizar según los valores comunes de velocidad
+          // Usar el valor mínimo/máximo configurado en la página de generación de patrones
+          const speedMin = 100;
+          const speedMax = 3000;
+          
+          paramValue = (speedValue - speedMin) / (speedMax - speedMin);
+          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+          
+          // Verde a Amarillo
+          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+          const g = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
+          const b = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          color = `rgb(${r}, ${g}, ${b})`;
+        }
+      } else if (patternLegendType === 'correction') {
+        // Intentar encontrar valor de corrección en el comentario
+        const correctionXMatch = comment.match(correctionXRegex);
+        const correctionYMatch = comment.match(correctionYRegex);
+        
+        let corrMatch = correctionXMatch || correctionYMatch;
+        
+        if (corrMatch) {
+          valueFound = true;
+          paramValue = parseFloat(corrMatch[1]);
+          paramValue = Math.min(1, paramValue); // Limitar a 1
+          
+          // Púrpura a Cian
+          const r = Math.floor(128 * (1 - paramValue) + 0 * paramValue);
+          const g = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+          const b = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
+          color = `rgb(${r}, ${g}, ${b})`;
+        }
+      }
+      
+      // Si no se encontró ningún valor en los comentarios, intentar usar los valores del path
+      if (!valueFound) {
+        // Usar el power o speed del path directamente si está disponible
+        if (patternLegendType === 'power' && path.power !== undefined && path.laserOn) {
+          // Normalizar power de 0-1000 a 0-1
+          paramValue = path.power / 1000;
+          // Azul a Rojo
+          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
+          color = `rgb(${r}, ${g}, ${b})`;
+        } else if (patternLegendType === 'speed' && path.feedrate !== undefined) {
+          // Normalizar speed
+          paramValue = (path.feedrate - 100) / (10000 - 100);
+          paramValue = Math.max(0, Math.min(1, paramValue));
+          // Verde a Amarillo
+          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+          const g = Math.floor(128 * (1 - paramValue) + 255 * paramValue);
+          const b = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+          color = `rgb(${r}, ${g}, ${b})`;
+        }
+      }
+    }
+    
+    return { color, lineWidth, isDashed };
   };
 
   return (

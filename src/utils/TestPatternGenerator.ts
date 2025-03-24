@@ -17,6 +17,7 @@ export interface TestPatternConfig {
   fixedSpeed?: number; // Fixed speed if not on any axis
   squareSize: number;
   spacing: number;
+  correctionAxis?: 'X' | 'Y'; // Eje al que se aplica la corrección
 }
 
 export class TestPatternGenerator {
@@ -30,7 +31,8 @@ export class TestPatternGenerator {
       fixedPower,
       fixedSpeed,
       squareSize,
-      spacing
+      spacing,
+      correctionAxis = 'X' // Valor por defecto: X
     } = config;
 
     // Validate configuration
@@ -56,6 +58,11 @@ export class TestPatternGenerator {
     }
     if (fixedSpeed !== undefined) {
       gcode += `;Fixed Speed: ${fixedSpeed} units/min\n`;
+    }
+    
+    // Agregar información sobre el eje de corrección si se usa corrección
+    if (xAxis.parameterType === 'correction' || yAxis.parameterType === 'correction') {
+      gcode += `;Correction Axis: ${correctionAxis} (axis with lower efficiency)\n`;
     }
     
     gcode += `;Square Size: ${squareSize}mm, Spacing: ${spacing}mm\n\n`;
@@ -120,11 +127,6 @@ export class TestPatternGenerator {
         if (xAxis.parameterType === 'correction') correction = xValue;
         else if (yAxis.parameterType === 'correction') correction = yValue;
         
-        // Apply correction to speed if needed
-        if (correction > 0) {
-          speed = speed * (1 - correction);
-        }
-        
         // Calculate position of this square
         const xPos = x * (squareSize + spacing);
         const yPos = y * (squareSize + spacing);
@@ -142,13 +144,34 @@ export class TestPatternGenerator {
         if (yAxis.parameterType === 'correction') gcode += `Correction-Y=${yValue.toFixed(2)}, `;
         gcode += `Final: Speed=${Math.round(speed)}, Power=${Math.round(power)}%\n`;
         
-        // Draw the square
+        // Draw the square with orientation-based correction
         gcode += `G0 X${xPos} Y${yPos} ; Move to start position\n`;
         gcode += `M3 S${normalizedPower} ; Set laser power\n`;
-        gcode += `G1 X${xPos + squareSize} Y${yPos} F${Math.round(speed)} ; Bottom edge\n`;
-        gcode += `G1 X${xPos + squareSize} Y${yPos + squareSize} ; Right edge\n`;
-        gcode += `G1 X${xPos} Y${yPos + squareSize} ; Top edge\n`;
-        gcode += `G1 X${xPos} Y${yPos} ; Left edge\n`;
+        
+        // Applied orientation and correction as follows:
+        // - Horizontal moves: affected by Y axis correction
+        // - Vertical moves: affected by X axis correction
+
+        // Bottom horizontal edge - X direction
+        let orientationFactor = correctionAxis === 'Y' ? 1 : 0; // Y axis affects horizontal moves
+        let correctedSpeed = speed * (1 - correction * orientationFactor);
+        gcode += `G1 X${xPos + squareSize} Y${yPos} F${Math.round(correctedSpeed)} ; Bottom edge (horizontal)\n`;
+        
+        // Right vertical edge - Y direction
+        orientationFactor = correctionAxis === 'X' ? 1 : 0; // X axis affects vertical moves
+        correctedSpeed = speed * (1 - correction * orientationFactor);
+        gcode += `G1 X${xPos + squareSize} Y${yPos + squareSize} F${Math.round(correctedSpeed)} ; Right edge (vertical)\n`;
+        
+        // Top horizontal edge - X direction
+        orientationFactor = correctionAxis === 'Y' ? 1 : 0; // Y axis affects horizontal moves
+        correctedSpeed = speed * (1 - correction * orientationFactor);
+        gcode += `G1 X${xPos} Y${yPos + squareSize} F${Math.round(correctedSpeed)} ; Top edge (horizontal)\n`;
+        
+        // Left vertical edge - Y direction
+        orientationFactor = correctionAxis === 'X' ? 1 : 0; // X axis affects vertical moves
+        correctedSpeed = speed * (1 - correction * orientationFactor);
+        gcode += `G1 X${xPos} Y${yPos} F${Math.round(correctedSpeed)} ; Left edge (vertical)\n`;
+        
         gcode += `M5 ; Laser off\n\n`;
       }
     }

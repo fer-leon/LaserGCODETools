@@ -3,6 +3,9 @@ import GCodeViewer from '../components/GCodeViewer';
 import TestPatternForm from '../components/TestPatternForm';
 import TestPatternGenerator, { TestParameterType } from '../utils/TestPatternGenerator';
 
+// Tipo para la leyenda de color
+type ColorLegendType = 'power' | 'speed' | 'correction';
+
 const TestGeneratorPage: React.FC = () => {
   // X Axis Parameters
   const [xParameterType, setXParameterType] = useState<TestParameterType>('speed');
@@ -28,6 +31,12 @@ const TestGeneratorPage: React.FC = () => {
   // GCODE generated
   const [generatedGCode, setGeneratedGCode] = useState<string>('');
   const [fileName, setFileName] = useState<string>('laser_test_pattern.gcode');
+  
+  // Color legend configuration
+  const [colorLegend, setColorLegend] = useState<ColorLegendType>('power');
+  
+  // Eje al que se aplica la corrección
+  const [correctionAxis, setCorrectionAxis] = useState<'X' | 'Y'>('X');
   
   // Save message
   const [saveMessage, setSaveMessage] = useState<{
@@ -112,6 +121,11 @@ const TestGeneratorPage: React.FC = () => {
   const needsFixedPower = () => xParameterType !== 'power' && yParameterType !== 'power';
   const needsFixedSpeed = () => xParameterType !== 'speed' && yParameterType !== 'speed';
 
+  // Función para determinar si la corrección está seleccionada en algún eje
+  const isCorrectionEnabled = () => {
+    return xParameterType === 'correction' || yParameterType === 'correction';
+  };
+
   // Generate GCODE when parameters change
   useEffect(() => {
     try {
@@ -131,7 +145,8 @@ const TestGeneratorPage: React.FC = () => {
         fixedPower: needsFixedPower() ? fixedPower : undefined,
         fixedSpeed: needsFixedSpeed() ? fixedSpeed : undefined,
         squareSize,
-        spacing
+        spacing,
+        correctionAxis // Pasar el eje de corrección al generador
       };
       
       console.log('Generating pattern with config:', config); // Debug log
@@ -147,7 +162,8 @@ const TestGeneratorPage: React.FC = () => {
     xParameterType, xMinValue, xMaxValue, xSteps,
     yParameterType, yMinValue, yMaxValue, ySteps,
     fixedPower, fixedSpeed,
-    squareSize, spacing, margin
+    squareSize, spacing, margin,
+    correctionAxis // Agregar como dependencia
   ]);
 
   // Function to download GCODE file
@@ -248,6 +264,15 @@ const TestGeneratorPage: React.FC = () => {
             onSpacingChange={setSpacing}
             onMarginChange={setMargin}
             
+            // Color legend
+            colorLegend={colorLegend}
+            onColorLegendChange={setColorLegend}
+            
+            // Correction Axis
+            correctionAxis={correctionAxis}
+            onCorrectionAxisChange={setCorrectionAxis}
+            isCorrectionEnabled={isCorrectionEnabled()}
+            
             // File
             fileName={fileName}
             onFileNameChange={setFileName}
@@ -275,7 +300,11 @@ const TestGeneratorPage: React.FC = () => {
         {/* Right panel - Viewer */}
         <div className="col-span-3 bg-white rounded-lg shadow-sm overflow-hidden border">
           {generatedGCode ? (
-            <GCodeViewer gcodeContent={generatedGCode} />
+            <GCodeViewer 
+              gcodeContent={generatedGCode} 
+              colorMode="pattern"
+              patternLegendType={colorLegend}
+            />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500">
               Configure parameters to generate a test pattern
