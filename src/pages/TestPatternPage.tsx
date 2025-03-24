@@ -107,6 +107,14 @@ const TestPatternPage: React.FC = () => {
     yParameterType, yMinValue, yMaxValue
   ]);
   
+  // Forzar rerender del visor cuando cambie la leyenda o el modo de color
+  const [forceViewerUpdate, setForceViewerUpdate] = useState(0);
+  
+  // Actualizar el contador de forceViewerUpdate cuando cambie cualquier parámetro relevante
+  useEffect(() => {
+    setForceViewerUpdate(prev => prev + 1);
+  }, [colorLegend, legendRanges]);
+  
   // Save GCODE to file
   const handleSave = async () => {
     if (!gcodeContent) return;
@@ -206,6 +214,7 @@ const TestPatternPage: React.FC = () => {
               patternLegendType={colorLegend}
               title="Test Pattern Preview"
               legendRanges={legendRanges}
+              key={`viewer-${forceViewerUpdate}`} // Forzar recreación del componente cuando cambie la configuración
             />
           </div>
         </div>

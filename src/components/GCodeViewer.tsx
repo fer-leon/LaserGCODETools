@@ -67,6 +67,83 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     position: { x: number, y: number };
   } | null>(null);
 
+  // Estado para almacenar los rangos de velocidad detectados
+  const [detectedRanges, setDetectedRanges] = useState<{
+    speed?: { min: number, max: number };
+    power?: { min: number, max: number };
+    correction?: { min: number, max: number };
+  }>({});
+  
+  // Analizar los segmentos para detectar rangos reales
+  useEffect(() => {
+    if (!parsedDataRef.current?.paths) return;
+    
+    const paths = parsedDataRef.current.paths;
+    let speedMin = Infinity;
+    let speedMax = -Infinity;
+    let powerMin = Infinity;
+    let powerMax = -Infinity;
+    
+    paths.forEach(path => {
+      // Ignorar movimientos rápidos para la velocidad
+      if (!path.isRapid && path.feedrate !== undefined) {
+        speedMin = Math.min(speedMin, path.feedrate);
+        speedMax = Math.max(speedMax, path.feedrate);
+      }
+      
+      // Calcular rango de potencia
+      if (path.laserOn && path.power !== undefined) {
+        const powerPercent = GCodeParser.convertPowerToPercentage(path.power);
+        powerMin = Math.min(powerMin, powerPercent);
+        powerMax = Math.max(powerMax, powerPercent);
+      }
+    });
+    
+    // Si no se encontraron valores válidos, usar predeterminados
+    if (speedMin === Infinity || speedMax === -Infinity) {
+      speedMin = 100;
+      speedMax = 3000;
+    }
+    
+    if (powerMin === Infinity || powerMax === -Infinity) {
+      powerMin = 0;
+      powerMax = 100;
+    }
+    
+    // Añadir un margen para que los extremos no estén exactamente en los límites
+    speedMin = Math.max(1, speedMin * 0.95);
+    speedMax = speedMax * 1.05;
+    
+    powerMin = Math.max(0, powerMin * 0.95);
+    powerMax = Math.min(100, powerMax * 1.05);
+    
+    setDetectedRanges({
+      speed: { min: speedMin, max: speedMax },
+      power: { min: powerMin, max: powerMax },
+      correction: legendRanges.correction // Mantener los valores definidos para corrección
+    });
+  }, [parsedDataRef.current, legendRanges.correction]);
+
+  // Función para obtener el rango a utilizar (detectado o proporcionado)
+  const getEffectiveRange = useCallback((type: 'power' | 'speed' | 'correction') => {
+    // Para velocidad: preferir siempre el rango detectado
+    if (type === 'speed' && detectedRanges.speed) {
+      return detectedRanges.speed;
+    } 
+    // Para potencia: preferir el rango detectado excepto si hay rangos definidos en el patrón
+    else if (type === 'power') {
+      // Si es 0-100 probablemente sea el valor por defecto, preferir el detectado
+      if (legendRanges.power?.min === 0 && legendRanges.power?.max === 100 && detectedRanges.power) {
+        return detectedRanges.power;
+      }
+      return legendRanges.power || detectedRanges.power || { min: 0, max: 100 };
+    }
+    // Para corrección: siempre usar el rango proporcionado
+    else {
+      return legendRanges.correction || { min: 0, max: 0.99 };
+    }
+  }, [detectedRanges, legendRanges]);
+
   // Parse GCODE or use custom paths
   useEffect(() => {
     // Si tenemos paths personalizados, usamos esos
@@ -160,23 +237,23 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         gradient.addColorStop(0, 'rgb(0, 0, 255)'); // Azul - potencia mínima
         gradient.addColorStop(1, 'rgb(255, 0, 0)'); // Rojo - potencia máxima
         legendTitle = 'Power (%)';
-        const range = legendRanges.power || { min: 0, max: 100 };
-        minLabel = `${range.min}%`;
-        maxLabel = `${range.max}%`;
+        const range = getEffectiveRange('power');
+        minLabel = `${Math.round(range.min)}%`;
+        maxLabel = `${Math.round(range.max)}%`;
       } else if (patternLegendType === 'speed') {
         // Verde (min) a Amarillo (max) para velocidad
         gradient.addColorStop(0, 'rgb(0, 128, 0)'); // Verde - velocidad mínima
         gradient.addColorStop(1, 'rgb(255, 255, 0)'); // Amarillo - velocidad máxima
         legendTitle = 'Speed (units/min)';
-        const range = legendRanges.speed || { min: 100, max: 3000 };
-        minLabel = `${range.min}`;
-        maxLabel = `${range.max}`;
+        const range = getEffectiveRange('speed');
+        minLabel = `${Math.round(range.min)}`;
+        maxLabel = `${Math.round(range.max)}`;
       } else if (patternLegendType === 'correction') {
         // Púrpura (min) a Cian (max) para corrección
         gradient.addColorStop(0, 'rgb(128, 0, 128)'); // Púrpura - corrección mínima
         gradient.addColorStop(1, 'rgb(0, 255, 255)'); // Cian - corrección máxima
         legendTitle = 'Correction factor';
-        const range = legendRanges.correction || { min: 0, max: 0.99 };
+        const range = getEffectiveRange('correction');
         minLabel = range.min.toFixed(2);
         maxLabel = range.max.toFixed(2);
       }
@@ -444,7 +521,8 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     correctionFactors, 
     showOriginalToggle, 
     originalPaths,
-    patternLegendType  // Agregar patternLegendType como dependencia
+    patternLegendType,
+    getEffectiveRange // Usar getEffectiveRange en lugar de legendRanges
   ]);
 
   // Re-render when scale or offset change
@@ -691,7 +769,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
   };
 
   // Obtener color para un camino según el tipo de visualización
-  const getPathColor = (path: GCodePath, index: number) => {
+  const getPathColor = useCallback((path: GCodePath, index: number) => {
     // Estilo predeterminado
     let color = path.isRapid ? '#2ECC71' : '#0000ff'; // Verde para rápidos, azul para corte
     let lineWidth = 1.5;
@@ -737,7 +815,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         if (powerMatch) {
           valueFound = true;
           const powerValue = parseFloat(powerMatch[1]);
-          const powerRange = legendRanges.power || { min: 0, max: 100 };
+          const powerRange = getEffectiveRange('power');
           
           // Normalizar a 0-1 basado en el rango
           paramValue = (powerValue - powerRange.min) / (powerRange.max - powerRange.min);
@@ -760,9 +838,9 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         if (speedMatch) {
           valueFound = true;
           const speedValue = parseFloat(speedMatch[1]);
-          const speedRange = legendRanges.speed || { min: 100, max: 3000 };
+          const speedRange = getEffectiveRange('speed');
           
-          // Normalizar basado en el rango configurado
+          // Normalizar basado en el rango detectado
           paramValue = (speedValue - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
@@ -782,7 +860,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         if (corrMatch) {
           valueFound = true;
           const corrValue = parseFloat(corrMatch[1]);
-          const corrRange = legendRanges.correction || { min: 0, max: 0.99 };
+          const corrRange = getEffectiveRange('correction');
           
           // Normalizar basado en el rango configurado
           paramValue = (corrValue - corrRange.min) / (corrRange.max - corrRange.min);
@@ -802,7 +880,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
         if (patternLegendType === 'power' && path.power !== undefined && path.laserOn) {
           // Convertir power de S a porcentaje y normalizar
           const powerPercent = GCodeParser.convertPowerToPercentage(path.power);
-          const powerRange = legendRanges.power || { min: 0, max: 100 };
+          const powerRange = getEffectiveRange('power');
           
           // Normalizar basado en el rango configurado
           paramValue = (powerPercent - powerRange.min) / (powerRange.max - powerRange.min);
@@ -814,8 +892,8 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
           const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
           color = `rgb(${r}, ${g}, ${b})`;
         } else if (patternLegendType === 'speed' && path.feedrate !== undefined) {
-          // Normalizar speed basado en el rango configurado
-          const speedRange = legendRanges.speed || { min: 100, max: 3000 };
+          // Normalizar speed basado en el rango detectado
+          const speedRange = getEffectiveRange('speed');
           paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
           paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
           
@@ -829,7 +907,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     }
     
     return { color, lineWidth, isDashed };
-  };
+  }, [colorMode, correctionFactors, patternLegendType, getEffectiveRange]); // Usar getEffectiveRange en lugar de legendRanges
 
   return (
     <div className="w-full h-full relative">
