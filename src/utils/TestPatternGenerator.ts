@@ -50,7 +50,7 @@ export class TestPatternGenerator {
       throw new Error('Fixed speed must be provided if speed is not on any axis');
     }
 
-    let gcode = `;Laser Test Pattern Generator\n`;
+    let gcode = `;Laser Test Pattern Generator\n;Fernando León 2025\n`;
     gcode += `;X Axis: ${xAxis.parameterType} from ${xAxis.minValue} to ${xAxis.maxValue} in ${xAxis.steps} steps\n`;
     gcode += `;Y Axis: ${yAxis.parameterType} from ${yAxis.minValue} to ${yAxis.maxValue} in ${yAxis.steps} steps\n`;
     
@@ -130,6 +130,7 @@ export class TestPatternGenerator {
         
         // Draw the square with orientation-based correction
         gcode += `G0 X${xPos} Y${yPos} ; Move to start position\n`;
+        gcode += `M8 ; Air assist on\n`; // Add air assist on before cutting
         gcode += `M3 S${normalizedPower} ; Set laser power\n`;
         
         // Applied orientation and correction as follows:
@@ -156,7 +157,8 @@ export class TestPatternGenerator {
         correctedSpeed = speed * (1 - correction * orientationFactor);
         gcode += `G1 X${xPos} Y${yPos} F${Math.round(correctedSpeed)} ; Left edge (vertical)\n`;
         
-        gcode += `M5 ; Laser off\n\n`;
+        gcode += `M5 ; Laser off\n`;
+        gcode += `M9 ; Air assist off\n\n`; // Add air assist off after cutting
       }
     }
     
