@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import GCodeViewer from '../components/GCodeViewer';
 import TestPatternForm from '../components/TestPatternForm';
 import TestPatternGenerator, { TestParameterType } from '../utils/TestPatternGenerator';
+import { TimeEstimator } from '../utils/TimeEstimator';
+import TimeEstimationConfig from '../components/TimeEstimationConfig';
+import GCodeParser from '../utils/GCodeParser';
 
 // Tipo para la leyenda de color
 type ColorLegendType = 'power' | 'speed' | 'correction';
@@ -73,6 +76,9 @@ const TestGeneratorPage: React.FC = () => {
     type: 'success' | 'error' | 'info';
     text: string;
   } | null>(null);
+  
+  const [acceleration, setAcceleration] = useState<number>(800); // Default acceleration value
+  const [timeEstimation, setTimeEstimation] = useState<{ totalTime: number, rapidTime: number, cuttingTime: number } | null>(null);
   
   // Set isSettingsLoaded to track if we've loaded settings
   const [isSettingsLoaded, setIsSettingsLoaded] = useState<boolean>(false);
@@ -276,6 +282,13 @@ const TestGeneratorPage: React.FC = () => {
       const gcode = TestPatternGenerator.generatePattern(config);
       setGeneratedGCode(gcode);
       
+      // Calculate time estimation
+      const parser = new GCodeParser();
+      parser.parseGCode(gcode);
+      const paths = parser.getPaths();
+      const estimation = TimeEstimator.estimateTime(paths, acceleration);
+      setTimeEstimation(estimation);
+      
     } catch (error) {
       console.error('Error generating pattern:', error);
       setGeneratedGCode(`; Error generating pattern: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -350,7 +363,7 @@ const TestGeneratorPage: React.FC = () => {
 
       <div className="flex-1 min-h-0 grid grid-cols-4 gap-3">
         {/* Left panel - Configuration */}
-        <div className="col-span-1 flex flex-col space-y-3 overflow-hidden">
+        <div className="col-span-1 flex flex-col space-y-3 overflow-y-auto">
           <TestPatternForm
             // X Axis
             xParameterType={xParameterType}
@@ -415,6 +428,24 @@ const TestGeneratorPage: React.FC = () => {
                 </svg>
                 <span className="text-sm">Save Test Pattern</span>
               </button>
+            </div>
+          )}
+          
+          {/* Add TimeEstimationConfig component - now inside the left panel */}
+          <TimeEstimationConfig 
+            acceleration={acceleration}
+            onAccelerationChange={setAcceleration}
+          />
+          
+          {/* Display time estimation results - now inside the left panel */}
+          {timeEstimation && generatedGCode && (
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-semibold mb-2">Time Estimation</h3>
+              <div className="text-xs space-y-1">
+                <p>Total estimated time: {TimeEstimator.formatTime(timeEstimation.totalTime)}</p>
+                <p>Rapid movements: {TimeEstimator.formatTime(timeEstimation.rapidTime)}</p>
+                <p>Cutting time: {TimeEstimator.formatTime(timeEstimation.cuttingTime)}</p>
+              </div>
             </div>
           )}
         </div>
