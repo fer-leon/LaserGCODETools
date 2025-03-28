@@ -50,9 +50,24 @@ export class TestPatternGenerator {
       throw new Error('Fixed speed must be provided if speed is not on any axis');
     }
 
+    // Calculate increments for each axis
+    const xIncrement = (xAxis.maxValue - xAxis.minValue) / (xAxis.steps - 1 || 1);
+    const yIncrement = (yAxis.maxValue - yAxis.minValue) / (yAxis.steps - 1 || 1);
+    
+    // Calculate matrix total size
+    const totalWidth = xAxis.steps * (squareSize + spacing) - spacing;
+    const totalHeight = yAxis.steps * (squareSize + spacing) - spacing;
+    
+    // Calcular la posición inicial considerando el margen
+    const startX = margin; // Usar el margen como punto de inicio en X
+    const startY = margin; // Usar el margen como punto de inicio en Y
+
     let gcode = `;Laser Test Pattern Generator\n;Fernando León 2025\n`;
     gcode += `;X Axis: ${xAxis.parameterType} from ${xAxis.minValue} to ${xAxis.maxValue} in ${xAxis.steps} steps\n`;
     gcode += `;Y Axis: ${yAxis.parameterType} from ${yAxis.minValue} to ${yAxis.maxValue} in ${yAxis.steps} steps\n`;
+    
+    // Add bounds information
+    gcode += `; Bounds: X${startX} Y${startY} to X${startX + totalWidth} Y${startY + totalHeight}\n\n`;
     
     // Add fixed parameter info to GCODE header
     if (fixedPower !== undefined) {
@@ -70,22 +85,10 @@ export class TestPatternGenerator {
     gcode += `;Square Size: ${squareSize}mm, Spacing: ${spacing}mm\n\n`;
     
     // Initial configuration
-    gcode += `G21 ; Set units to millimeters\n`;
+    gcode += `G00G17G40G21G54 ; Initial setup - rapid positioning, XY plane, tool comp cancel, mm units, coord system 1\n`;
     gcode += `G90 ; Absolute positioning\n`;
     gcode += `M5 ; Laser off\n`;
-    gcode += `G0 X0 Y0 ; Move to origin\n\n`;
-
-    // Calculate increments for each axis
-    const xIncrement = (xAxis.maxValue - xAxis.minValue) / (xAxis.steps - 1 || 1);
-    const yIncrement = (yAxis.maxValue - yAxis.minValue) / (yAxis.steps - 1 || 1);
-    
-    // Calculate matrix total size
-    const totalWidth = xAxis.steps * (squareSize + spacing) - spacing;
-    const totalHeight = yAxis.steps * (squareSize + spacing) - spacing;
-    
-    // Calcular la posición inicial considerando el margen
-    const startX = margin; // Usar el margen como punto de inicio en X
-    const startY = margin; // Usar el margen como punto de inicio en Y
+    gcode += `G0X0Y0 ; Move to origin\n\n`;
 
     // Create squares for each combination of values
     for (let y = 0; y < yAxis.steps; y++) {
@@ -129,9 +132,9 @@ export class TestPatternGenerator {
         gcode += `Final: Speed=${Math.round(speed)}, Power=${Math.round(power)}%\n`;
         
         // Draw the square with orientation-based correction
-        gcode += `G0 X${xPos} Y${yPos} ; Move to start position\n`;
-        gcode += `M8 ; Air assist on\n`; // Add air assist on before cutting
-        gcode += `M3 S${normalizedPower} ; Set laser power\n`;
+        gcode += `G0X${xPos}Y${yPos} ; Move to start position\n`;
+        gcode += `M7 ; Air assist on\n`; // Add air assist on before cutting
+        gcode += `M4S${normalizedPower} ; Set laser power\n`;
         
         // Applied orientation and correction as follows:
         // - Horizontal moves: affected by Y axis correction
@@ -140,22 +143,22 @@ export class TestPatternGenerator {
         // Bottom horizontal edge - X direction
         let orientationFactor = correctionAxis === 'Y' ? 1 : 0; // Y axis affects horizontal moves
         let correctedSpeed = speed * (1 - correction * orientationFactor);
-        gcode += `G1 X${xPos + squareSize} Y${yPos} F${Math.round(correctedSpeed)} ; Bottom edge (horizontal)\n`;
+        gcode += `G1X${xPos + squareSize}Y${yPos}F${Math.round(correctedSpeed)} ; Bottom edge (horizontal)\n`;
         
         // Right vertical edge - Y direction
         orientationFactor = correctionAxis === 'X' ? 1 : 0; // X axis affects vertical moves
         correctedSpeed = speed * (1 - correction * orientationFactor);
-        gcode += `G1 X${xPos + squareSize} Y${yPos + squareSize} F${Math.round(correctedSpeed)} ; Right edge (vertical)\n`;
+        gcode += `G1X${xPos + squareSize}Y${yPos + squareSize}F${Math.round(correctedSpeed)} ; Right edge (vertical)\n`;
         
         // Top horizontal edge - X direction
         orientationFactor = correctionAxis === 'Y' ? 1 : 0; // Y axis affects horizontal moves
         correctedSpeed = speed * (1 - correction * orientationFactor);
-        gcode += `G1 X${xPos} Y${yPos + squareSize} F${Math.round(correctedSpeed)} ; Top edge (horizontal)\n`;
+        gcode += `G1X${xPos}Y${yPos + squareSize}F${Math.round(correctedSpeed)} ; Top edge (horizontal)\n`;
         
         // Left vertical edge - Y direction
         orientationFactor = correctionAxis === 'X' ? 1 : 0; // X axis affects vertical moves
         correctedSpeed = speed * (1 - correction * orientationFactor);
-        gcode += `G1 X${xPos} Y${yPos} F${Math.round(correctedSpeed)} ; Left edge (vertical)\n`;
+        gcode += `G1X${xPos}Y${yPos}F${Math.round(correctedSpeed)} ; Left edge (vertical)\n`;
         
         gcode += `M5 ; Laser off\n`;
         gcode += `M9 ; Air assist off\n\n`; // Add air assist off after cutting
@@ -166,7 +169,7 @@ export class TestPatternGenerator {
     this.addAxisLabels(gcode, xAxis, yAxis, squareSize, spacing);
     
     // Return to origin
-    gcode += `G0 X0 Y0 ; Return to origin\n`;
+    gcode += `G0X0Y0 ; Return to origin\n`;
     gcode += `M5 ; Ensure laser is off\n`;
     
     return gcode;
