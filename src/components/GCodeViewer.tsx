@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import GCodeParser, { GCodePath } from '../utils/GCodeParser';
 
 interface GCodeViewerProps {
@@ -26,7 +26,7 @@ interface GCodeViewerProps {
   };
 }
 
-const GCodeViewer: React.FC<GCodeViewerProps> = ({ 
+const GCodeViewer: React.FC<GCodeViewerProps> = React.memo(({ 
   gcodeContent,
   customPaths,
   originalPaths,
@@ -122,26 +122,28 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       power: { min: powerMin, max: powerMax },
       correction: legendRanges.correction // Mantener los valores definidos para corrección
     });
-  }, [parsedDataRef.current, legendRanges.correction]);
+  }, [gcodeContent, customPaths, legendRanges.correction]);
 
   // Función para obtener el rango a utilizar (detectado o proporcionado)
-  const getEffectiveRange = useCallback((type: 'power' | 'speed' | 'correction') => {
-    // Para velocidad: preferir siempre el rango detectado
-    if (type === 'speed' && detectedRanges.speed) {
-      return detectedRanges.speed;
-    } 
-    // Para potencia: preferir el rango detectado excepto si hay rangos definidos en el patrón
-    else if (type === 'power') {
-      // Si es 0-100 probablemente sea el valor por defecto, preferir el detectado
-      if (legendRanges.power?.min === 0 && legendRanges.power?.max === 100 && detectedRanges.power) {
-        return detectedRanges.power;
+  const getEffectiveRange = useMemo(() => {
+    return (type: 'power' | 'speed' | 'correction') => {
+      // Para velocidad: preferir siempre el rango detectado
+      if (type === 'speed' && detectedRanges.speed) {
+        return detectedRanges.speed;
+      } 
+      // Para potencia: preferir el rango detectado excepto si hay rangos definidos en el patrón
+      else if (type === 'power') {
+        // Si es 0-100 probablemente sea el valor por defecto, preferir el detectado
+        if (legendRanges.power?.min === 0 && legendRanges.power?.max === 100 && detectedRanges.power) {
+          return detectedRanges.power;
+        }
+        return legendRanges.power || detectedRanges.power || { min: 0, max: 100 };
       }
-      return legendRanges.power || detectedRanges.power || { min: 0, max: 100 };
-    }
-    // Para corrección: siempre usar el rango proporcionado
-    else {
-      return legendRanges.correction || { min: 0, max: 0.99 };
-    }
+      // Para corrección: siempre usar el rango proporcionado
+      else {
+        return legendRanges.correction || { min: 0, max: 0.99 };
+      }
+    };
   }, [detectedRanges, legendRanges]);
 
   // Parse GCODE or use custom paths
@@ -514,7 +516,7 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
     showOriginalToggle, 
     originalPaths,
     patternLegendType,
-    getEffectiveRange // Usar getEffectiveRange en lugar de legendRanges
+    getEffectiveRange
   ]);
 
   // Re-render when scale or offset change
@@ -761,123 +763,125 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
   };
 
   // Obtener color para un camino según el tipo de visualización
-  const getPathColor = useCallback((path: GCodePath, index: number) => {
-    // Estilo predeterminado
-    let color = path.isRapid ? '#2ECC71' : '#0000ff'; // Verde para rápidos, azul para corte
-    let lineWidth = 1.5;
-    let isDashed = path.isRapid;
-    
-    // Color según el modo
-    if (colorMode === 'correction' && correctionFactors) {
-      // Coloreado basado en corrección (azul sin corrección a rojo con máxima)
-      if (!path.isRapid) {
-        const factor = correctionFactors[index] || 0;
-        const r = Math.floor(0 * (1 - factor) + 255 * factor);
-        const g = Math.floor(0 * (1 - factor) + 0 * factor);
-        const b = Math.floor(255 * (1 - factor) + 0 * factor);
-        color = `rgb(${r}, ${g}, ${b})`;
+  const getPathColor = useMemo(() => {
+    return (path: GCodePath, index: number) => {
+      // Estilo predeterminado
+      let color = path.isRapid ? '#2ECC71' : '#0000ff'; // Verde para rápidos, azul para corte
+      let lineWidth = 1.5;
+      let isDashed = path.isRapid;
+      
+      // Color según el modo
+      if (colorMode === 'correction' && correctionFactors) {
+        // Coloreado basado en corrección (azul sin corrección a rojo con máxima)
+        if (!path.isRapid) {
+          const factor = correctionFactors[index] || 0;
+          const r = Math.floor(0 * (1 - factor) + 255 * factor);
+          const g = Math.floor(0 * (1 - factor) + 0 * factor);
+          const b = Math.floor(255 * (1 - factor) + 0 * factor);
+          color = `rgb(${r}, ${g}, ${b})`;
+        }
+      } else if (colorMode === 'pattern' && !path.isRapid) {
+        // Analizar el comentario para obtener información
+        const comment = path.command?.comment || '';
+        
+        // Expresiones regulares más precisas
+        const powerXRegex = /Power-X=(\d+\.?\d*)%/;
+        const powerYRegex = /Power-Y=(\d+\.?\d*)%/;
+        const speedXRegex = /Speed-X=(\d+\.?\d*)/;
+        const speedYRegex = /Speed-Y=(\d+\.?\d*)/;
+        const correctionXRegex = /Correction-X=(\d+\.?\d*)/;
+        const correctionYRegex = /Correction-Y=(\d+\.?\d*)/;
+        
+        // Patrones para valores finales
+        const finalPowerRegex = /Power=(\d+)%/;
+        const finalSpeedRegex = /Speed=(\d+)/;
+        
+        let paramValue = 0;
+        let valueFound = false;
+        
+        if (patternLegendType === 'power') {
+          // Intentar encontrar valor de potencia en el comentario
+          const powerXMatch = comment.match(powerXRegex);
+          const powerYMatch = comment.match(powerYRegex);
+          const finalPowerMatch = comment.match(finalPowerRegex);
+          
+          let powerMatch = powerXMatch || powerYMatch || finalPowerMatch;
+          
+          if (powerMatch) {
+            valueFound = true;
+            const powerValue = parseFloat(powerMatch[1]);
+            const powerRange = getEffectiveRange('power');
+            
+            // Normalizar a 0-1 basado en el rango
+            paramValue = (powerValue - powerRange.min) / (powerRange.max - powerRange.min);
+            paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+            
+            // Azul a Rojo
+            const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+            const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+            const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
+            color = `rgb(${r}, ${g}, ${b})`;
+          }
+        } else if (patternLegendType === 'speed') {
+          // Intentar encontrar valor de velocidad en el comentario
+          const speedXMatch = comment.match(speedXRegex);
+          const speedYMatch = comment.match(speedYRegex);
+          const finalSpeedMatch = comment.match(finalSpeedRegex);
+          
+          let speedMatch = speedXMatch || speedYMatch || finalSpeedMatch;
+          
+          if (speedMatch) {
+            valueFound = true;
+            const speedValue = parseFloat(speedMatch[1]);
+            const speedRange = getEffectiveRange('speed');
+            
+            // Normalizar basado en el rango detectado
+            paramValue = (speedValue - speedRange.min) / (speedRange.max - speedRange.min);
+            paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+            
+            // Azul a Violeta
+            const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+            const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+            const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
+            color = `rgb(${r}, ${g}, ${b})`;
+          }
+        } 
+        
+        // Si no se encontró ningún valor en los comentarios, intentar usar los valores del path
+        if (!valueFound) {
+          // Usar el power o speed del path directamente si está disponible
+          if (patternLegendType === 'power' && path.power !== undefined && path.laserOn) {
+            // Convertir power de S a porcentaje y normalizar
+            const powerPercent = GCodeParser.convertPowerToPercentage(path.power);
+            const powerRange = getEffectiveRange('power');
+            
+            // Normalizar basado en el rango configurado
+            paramValue = (powerPercent - powerRange.min) / (powerRange.max - powerRange.min);
+            paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+            
+            // Azul a Rojo
+            const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+            const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+            const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
+            color = `rgb(${r}, ${g}, ${b})`;
+          } else if (patternLegendType === 'speed' && path.feedrate !== undefined) {
+            // Normalizar speed basado en el rango detectado
+            const speedRange = getEffectiveRange('speed');
+            paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
+            paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
+            
+            // Azul a Violeta
+            const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
+            const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
+            const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
+            color = `rgb(${r}, ${g}, ${b})`;
+          }
+        }
       }
-    } else if (colorMode === 'pattern' && !path.isRapid) {
-      // Analizar el comentario para obtener información
-      const comment = path.command?.comment || '';
       
-      // Expresiones regulares más precisas
-      const powerXRegex = /Power-X=(\d+\.?\d*)%/;
-      const powerYRegex = /Power-Y=(\d+\.?\d*)%/;
-      const speedXRegex = /Speed-X=(\d+\.?\d*)/;
-      const speedYRegex = /Speed-Y=(\d+\.?\d*)/;
-      const correctionXRegex = /Correction-X=(\d+\.?\d*)/;
-      const correctionYRegex = /Correction-Y=(\d+\.?\d*)/;
-      
-      // Patrones para valores finales
-      const finalPowerRegex = /Power=(\d+)%/;
-      const finalSpeedRegex = /Speed=(\d+)/;
-      
-      let paramValue = 0;
-      let valueFound = false;
-      
-      if (patternLegendType === 'power') {
-        // Intentar encontrar valor de potencia en el comentario
-        const powerXMatch = comment.match(powerXRegex);
-        const powerYMatch = comment.match(powerYRegex);
-        const finalPowerMatch = comment.match(finalPowerRegex);
-        
-        let powerMatch = powerXMatch || powerYMatch || finalPowerMatch;
-        
-        if (powerMatch) {
-          valueFound = true;
-          const powerValue = parseFloat(powerMatch[1]);
-          const powerRange = getEffectiveRange('power');
-          
-          // Normalizar a 0-1 basado en el rango
-          paramValue = (powerValue - powerRange.min) / (powerRange.max - powerRange.min);
-          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
-          
-          // Azul a Rojo
-          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
-          const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
-          color = `rgb(${r}, ${g}, ${b})`;
-        }
-      } else if (patternLegendType === 'speed') {
-        // Intentar encontrar valor de velocidad en el comentario
-        const speedXMatch = comment.match(speedXRegex);
-        const speedYMatch = comment.match(speedYRegex);
-        const finalSpeedMatch = comment.match(finalSpeedRegex);
-        
-        let speedMatch = speedXMatch || speedYMatch || finalSpeedMatch;
-        
-        if (speedMatch) {
-          valueFound = true;
-          const speedValue = parseFloat(speedMatch[1]);
-          const speedRange = getEffectiveRange('speed');
-          
-          // Normalizar basado en el rango detectado
-          paramValue = (speedValue - speedRange.min) / (speedRange.max - speedRange.min);
-          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
-          
-          // Azul a Violeta
-          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
-          const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
-          color = `rgb(${r}, ${g}, ${b})`;
-        }
-      } 
-      
-      // Si no se encontró ningún valor en los comentarios, intentar usar los valores del path
-      if (!valueFound) {
-        // Usar el power o speed del path directamente si está disponible
-        if (patternLegendType === 'power' && path.power !== undefined && path.laserOn) {
-          // Convertir power de S a porcentaje y normalizar
-          const powerPercent = GCodeParser.convertPowerToPercentage(path.power);
-          const powerRange = getEffectiveRange('power');
-          
-          // Normalizar basado en el rango configurado
-          paramValue = (powerPercent - powerRange.min) / (powerRange.max - powerRange.min);
-          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
-          
-          // Azul a Rojo
-          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
-          const b = Math.floor(255 * (1 - paramValue) + 0 * paramValue);
-          color = `rgb(${r}, ${g}, ${b})`;
-        } else if (patternLegendType === 'speed' && path.feedrate !== undefined) {
-          // Normalizar speed basado en el rango detectado
-          const speedRange = getEffectiveRange('speed');
-          paramValue = (path.feedrate - speedRange.min) / (speedRange.max - speedRange.min);
-          paramValue = Math.max(0, Math.min(1, paramValue)); // Limitar entre 0-1
-          
-          // Azul a Violeta
-          const r = Math.floor(0 * (1 - paramValue) + 255 * paramValue);
-          const g = Math.floor(0 * (1 - paramValue) + 0 * paramValue);
-          const b = Math.floor(255 * (1 - paramValue) + 255 * paramValue);
-          color = `rgb(${r}, ${g}, ${b})`;
-        }
-      }
-    }
-    
-    return { color, lineWidth, isDashed };
-  }, [colorMode, correctionFactors, patternLegendType, getEffectiveRange]); // Usar getEffectiveRange en lugar de legendRanges
+      return { color, lineWidth, isDashed };
+    };
+  }, [colorMode, correctionFactors, patternLegendType, getEffectiveRange]);
 
   return (
     <div className="w-full h-full relative">
@@ -976,6 +980,6 @@ const GCodeViewer: React.FC<GCodeViewerProps> = ({
       </div>
     </div>
   );
-};
+});
 
 export default GCodeViewer;
